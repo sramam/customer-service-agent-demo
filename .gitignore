@@ -12,6 +12,13 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/remotion-out/
+/remotion/node_modules/
+/remotion/public/voiceover.mp3
+/remotion/public/voice/*.mp3
 
 # next.js
 /.next/
@@ -32,6 +39,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +47,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+prisma/dev.db
+prisma/dev.db-journal
