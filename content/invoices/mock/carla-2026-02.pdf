@@ -1,0 +1,60 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 3 0 R >>
+endobj
+2 0 obj
+<< /Length 857 >>
+stream
+BT
+/F1 12 Tf
+36 750 Td
+14 TL
+(F5 NETWORKS, INC.) '
+(INVOICE) '
+() '
+(Invoice Number: INV-F5-2026-0222) '
+(Date Issued: March 1, 2026) '
+(Billing Period: February 1 - February 28, 2026) '
+() '
+(Bill To:) '
+(  Carla Johansson) '
+(  carla@nordikbank.se) '
+(  Enterprise Plan - Premium Support) '
+() '
+(Description                              Amount) '
+(------------------------------------------------) '
+(Distributed Cloud WAAP                  $5,500.00) '
+(NGINX App Protect                       $4,000.00) '
+(F5 DNS \(GTM\)                            $3,500.00) '
+(NGINX One                               $2,500.00) '
+(Premium Support                         $2,500.00) '
+(------------------------------------------------) '
+(Total                                       $18,000.00) '
+() '
+(Payment Terms: Net 30) '
+(Thank you for your business.) '
+ET
+endstream
+endobj
+3 0 obj
+<< /Type /Pages /Kids [4 0 R] /Count 1 >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Contents 2 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000962 00000 n 
+0000001019 00000 n 
+0000001145 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1215
+%%EOF

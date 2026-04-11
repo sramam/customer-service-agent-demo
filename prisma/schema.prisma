@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model CustomerAccount {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  name        String
+  company     String    @default("")
+  products    String    @default("")
+  status      String
+  planTier    String
+  supportTier String
+  createdAt   DateTime  @default(now())
+  invoices    Invoice[]
+}
+
+model Invoice {
+  id            String          @id @default(cuid())
+  accountId     String
+  account       CustomerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  invoiceNumber String
+  amountCents   Int
+  currency      String          @default("USD")
+  periodStart   DateTime
+  periodEnd     DateTime
+  issuedAt      DateTime
+  pdfKey        String
+}
+
+model Conversation {
+  id               String   @id @default(cuid())
+  status           String   @default("WITH_CUSTOMER_AI")
+  customerEmail    String
+  escalationReason String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  messages         Message[]
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String
+  audience       String       @default("CUSTOMER_VISIBLE")
+  createdAt      DateTime     @default(now())
+}
