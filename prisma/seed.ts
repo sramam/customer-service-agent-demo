@@ -1,11 +1,15 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import "dotenv/config";
+import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "../src/generated/prisma";
-import path from "node:path";
 
-const adapter = new PrismaBetterSqlite3({
-  url: "file:" + path.join(__dirname, "dev.db"),
+const prismaUrl =
+  process.env.DIRECT_URL?.trim() ||
+  process.env.DATABASE_URL?.trim() ||
+  "postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder";
+
+const prisma = new PrismaClient({
+  adapter: new PrismaNeon({ connectionString: prismaUrl }),
 });
-const prisma = new PrismaClient({ adapter });
 
 interface CustomerSeed {
   email: string;

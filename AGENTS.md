@@ -14,7 +14,8 @@ This document describes how customer AI, employee AI, persistence, and UI fit to
 - AI SDK v6 `useChat` uses `transport: new DefaultChatTransport({ api })` (not `api` directly).
 - AI SDK v6 `streamText` uses `stopWhen: stepCountIs(n)` (not `maxSteps`).
 - Prisma 7 uses `prisma.config.ts` for datasource URL (not `url` in `schema.prisma`).
-- Prisma 7 requires `@prisma/adapter-better-sqlite3` at runtime.
+- Prisma 7 uses `prisma.config.ts` for `DATABASE_URL` / `DIRECT_URL` (PostgreSQL / Neon).
+- Prisma 7 `PrismaClient` requires a driver adapter (`@prisma/adapter-neon` + pooled `DATABASE_URL`) or Accelerate.
 
 ---
 
@@ -25,7 +26,7 @@ The app models **two lanes**:
 1. **Customer AI** — Public docs + read-only account/invoice tools. Cannot change subscriptions or billing; escalates to a human when intent is clear and a handoff is needed.
 2. **Employee AI** — Backs the human agent: public + **internal** docs, full account read/write tools, structured **internal notes** vs **draft customer reply**.
 
-**Persistence** is SQLite via Prisma: `CustomerAccount`, `Invoice`, `Conversation`, `Message`. Messages use `audience` (`CUSTOMER_VISIBLE` vs `INTERNAL_ONLY`) so employee↔AI chat does not appear in the customer thread.
+**Persistence** is PostgreSQL (Neon in dev/deploy) via Prisma: `CustomerAccount`, `Invoice`, `Conversation`, `Message`. Messages use `audience` (`CUSTOMER_VISIBLE` vs `INTERNAL_ONLY`) so employee↔AI chat does not appear in the customer thread.
 
 **Primary surfaces**
 

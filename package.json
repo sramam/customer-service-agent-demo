@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "vercel-build": "prisma generate && prisma migrate deploy && tsx prisma/seed.ts && node -e \"require('fs').accessSync('prisma/dev.db')\" && next build",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
@@ -24,11 +24,10 @@
     "@ai-sdk/openai": "^3.0.52",
     "@ai-sdk/react": "^3.0.158",
     "@base-ui/react": "^1.3.0",
-    "@prisma/adapter-better-sqlite3": "^7.7.0",
+    "@prisma/adapter-neon": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "@prisma/client-runtime-utils": "^7.7.0",
     "ai": "^6.0.156",
-    "better-sqlite3": "^12.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.1",
@@ -46,7 +45,6 @@
   "devDependencies": {
     "@playwright/test": "^1.51.0",
     "@tailwindcss/postcss": "^4",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -58,10 +56,12 @@
     "typescript": "^5"
   },
   "packageManager": "pnpm@10.28.2+sha512.41872f037ad22f7348e3b1debbaf7e867cfd448f2726d9cf74c08f19507c31d2c8e7a11525b983febc2df640b5438dee6023ebb1f84ed43cc2d654d2bc326264",
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "@prisma/engines",
-      "better-sqlite3",
       "esbuild",
       "msw",
       "prisma"

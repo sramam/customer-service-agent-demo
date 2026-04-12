@@ -1,74 +1,22 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "@/generated/prisma";
-import { copyFileSync, existsSync, unlinkSync } from "node:fs";
-import path from "node:path";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-const vercelCopyFlag = "__f5_vercel_sqlite_copied__";
-
-function ensureVercelBundledDbOnTmp(): void {
-  if (process.env.VERCEL !== "1") return;
-  const g = globalThis as Record<string, unknown>;
-  if (g[vercelCopyFlag]) return;
-  g[vercelCopyFlag] = true;
-
-  const cwd = process.cwd();
-  const candidates = [
-    path.join(cwd, "prisma", "dev.db"),
-    path.join(cwd, "dev.db"),
-  ];
-
-  const runtime = "/tmp/f5-poc.db";
-  try {
-    if (existsSync(runtime)) {
-      unlinkSync(runtime);
-    }
-    let bundled: string | undefined;
-    for (const p of candidates) {
-      if (existsSync(p)) {
-        bundled = p;
-        break;
-      }
-    }
-    if (bundled) {
-      copyFileSync(bundled, runtime);
-    } else {
-      console.error(
-        "[prisma] Vercel: bundled SQLite not found. Tried:",
-        candidates,
-        "cwd=",
-        cwd
-      );
-    }
-  } catch (e) {
-    console.error("[prisma] Vercel: copy dev.db → /tmp failed:", e);
+function databaseUrlForApp(): string {
+  const url = process.env.DATABASE_URL?.trim();
+  if (url && !url.startsWith("postgresql")) {
+    throw new Error(
+      "DATABASE_URL must be a PostgreSQL URL (Neon pooled). Remove SQLite file: URLs from .env.",
+    );
   }
-}
-
-/**
- * Local dev: DATABASE_URL=file:... or prisma/dev.db.
- * Vercel: **always** file:/tmp/f5-poc.db — do not use DATABASE_URL from pasted .env (e.g. file:./dev.db)
- * or SQLite hits SQLITE_CANTOPEN on the read-only serverless filesystem.
- */
-function sqliteFileUrl(): string {
-  if (process.env.VERCEL === "1") {
-    return "file:/tmp/f5-poc.db";
-  }
-  const fromEnv = process.env.DATABASE_URL;
-  if (fromEnv?.startsWith("file:")) {
-    return fromEnv;
-  }
-  return "file:" + path.join(process.cwd(), "prisma", "dev.db");
-}
-
-function createClient() {
-  ensureVercelBundledDbOnTmp();
-  const adapter = new PrismaBetterSqlite3({
-    url: sqliteFileUrl(),
-  });
-  return new PrismaClient({ adapter });
+  if (url?.startsWith("postgresql")) return url;
+  // Build / generate without a real DB; set DATABASE_URL for runtime queries.
+  return "postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder";
 }
 
 export const prisma =
-  globalForPrisma.prisma ?? (globalForPrisma.prisma = createClient());
+  globalForPrisma.prisma ??
+  (globalForPrisma.prisma = new PrismaClient({
+    adapter: new PrismaNeon({ connectionString: databaseUrlForApp() }),
+  }));

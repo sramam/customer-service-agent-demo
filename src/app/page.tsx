@@ -118,7 +118,19 @@ export default function HomePage() {
             <div>
               <h3 className="mb-1.5 font-medium text-slate-900">Data</h3>
               <p className="text-slate-600">
-                Prisma 7 · SQLite · better-sqlite3 (Prisma adapter)
+                Prisma 7 · PostgreSQL on Neon ·{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                  @prisma/adapter-neon
+                </code>{" "}
+                (pooled{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                  DATABASE_URL
+                </code>
+                , direct{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                  DIRECT_URL
+                </code>{" "}
+                for migrations) · one shared database for local dev and production in this POC
               </p>
             </div>
             <div>
@@ -132,8 +144,10 @@ export default function HomePage() {
               </p>
             </div>
             <div>
-              <h3 className="mb-1.5 font-medium text-slate-900">Tooling</h3>
-              <p className="text-slate-600">pnpm · ESLint</p>
+              <h3 className="mb-1.5 font-medium text-slate-900">Hosting &amp; tooling</h3>
+              <p className="text-slate-600">
+                Vercel (deploy) · same env pattern as <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">.env</code> — Neon URLs, OpenAI key · pnpm · ESLint
+              </p>
             </div>
           </div>
         </section>
