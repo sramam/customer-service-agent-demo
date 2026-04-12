@@ -188,7 +188,7 @@ function CustomerChatInline({
   const customFetch = useCallback(async (url: RequestInfo | URL, init?: RequestInit) => {
     const res = await fetch(url, init);
     const hdr = res.headers.get("X-Conversation-Id");
-    if (hdr && !convIdRef.current) {
+    if (hdr && hdr !== convIdRef.current) {
       convIdRef.current = hdr;
       setConversationId(hdr);
     }

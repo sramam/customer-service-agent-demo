@@ -33,6 +33,14 @@ export async function POST(req: Request) {
   }
 
   let convId = conversationId;
+  if (convId) {
+    const exists = await prisma.conversation.findUnique({
+      where: { id: convId },
+      select: { id: true },
+    });
+    if (!exists) convId = undefined;
+  }
+
   if (!convId) {
     const conv = await prisma.conversation.create({
       data: {
@@ -48,6 +56,8 @@ export async function POST(req: Request) {
       data: { status: "ESCALATED", escalationReason: decision.reason },
     });
   }
+
+  const replacedStaleId = conversationId != null && convId !== conversationId;
 
   const lastUserMsg = messages.filter((m) => m.role === "user").at(-1);
   if (lastUserMsg) {
@@ -80,8 +90,8 @@ export async function POST(req: Request) {
     },
   });
 
-  // Persist earlier conversation messages if this is a new conversation
-  if (!conversationId) {
+  // Persist earlier messages for a brand-new thread, or after a stale id was replaced with a new row
+  if (!conversationId || replacedStaleId) {
     const earlier = messages.slice(0, -1);
     for (const msg of earlier) {
       const text =

@@ -3,6 +3,7 @@ import { AI_SDK_MAX_RETRIES } from "@/lib/ai-retry";
 import { customerModel, CUSTOMER_SYSTEM } from "@/lib/agents/customer";
 import { searchPublicDocs } from "@/lib/agents/tools/public-docs";
 import { getAccountInfo, listInvoices } from "@/lib/agents/tools/account-read";
+import { ensureCustomerConversation } from "@/lib/ensure-conversation";
 import { prisma } from "@/lib/prisma";
 import { requireOpenAiKeyResponse } from "@/lib/require-openai";
 import {
@@ -30,14 +31,11 @@ export async function POST(req: Request) {
   const { messages, conversationId, customerEmail } = body;
 
   try {
-  let convId = conversationId;
-
-  if (!convId) {
-    const conv = await prisma.conversation.create({
-      data: { customerEmail, status: "WITH_CUSTOMER_AI" },
-    });
-    convId = conv.id;
-  }
+  const convId = await ensureCustomerConversation(
+    conversationId,
+    customerEmail,
+    { status: "WITH_CUSTOMER_AI" }
+  );
 
   const lastUserMsg = messages.filter((m) => m.role === "user").at(-1);
   if (lastUserMsg) {
