@@ -6,8 +6,14 @@ import {
   EMPLOYEE_SYSTEM,
 } from "@/lib/agents/employee";
 import { prisma } from "@/lib/prisma";
+import { requireOpenAiKeyResponse } from "@/lib/require-openai";
+
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const missingKey = requireOpenAiKeyResponse();
+  if (missingKey) return missingKey;
+
   const {
     messages,
     conversationId,

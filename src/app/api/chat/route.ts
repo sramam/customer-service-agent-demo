@@ -4,22 +4,32 @@ import { customerModel, CUSTOMER_SYSTEM } from "@/lib/agents/customer";
 import { searchPublicDocs } from "@/lib/agents/tools/public-docs";
 import { getAccountInfo, listInvoices } from "@/lib/agents/tools/account-read";
 import { prisma } from "@/lib/prisma";
+import { requireOpenAiKeyResponse } from "@/lib/require-openai";
 import {
   buildEscalationReason,
   requestEscalationInputSchema,
 } from "@/lib/agents/tools/escalation-handoff";
 
+export const runtime = "nodejs";
+
 export async function POST(req: Request) {
-  const {
-    messages,
-    conversationId,
-    customerEmail,
-  }: {
+  const missingKey = requireOpenAiKeyResponse();
+  if (missingKey) return missingKey;
+
+  let body: {
     messages: UIMessage[];
     conversationId?: string;
     customerEmail: string;
-  } = await req.json();
+  };
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
 
+  const { messages, conversationId, customerEmail } = body;
+
+  try {
   let convId = conversationId;
 
   if (!convId) {
@@ -137,9 +147,23 @@ export async function POST(req: Request) {
     },
   });
 
-  return result.toUIMessageStreamResponse({
-    headers: {
-      "X-Conversation-Id": finalConvId,
-    },
-  });
+    return result.toUIMessageStreamResponse({
+      headers: {
+        "X-Conversation-Id": finalConvId,
+      },
+    });
+  } catch (e) {
+    console.error("[api/chat]", e);
+    const msg = e instanceof Error ? e.message : "Internal server error";
+    return Response.json(
+      {
+        error: msg,
+        hint:
+          process.env.VERCEL === "1"
+            ? "If this mentions SQLite or 'no such table', ensure vercel-build ran (migrate + seed) and prisma/dev.db is deployed."
+            : undefined,
+      },
+      { status: 500 }
+    );
+  }
 }

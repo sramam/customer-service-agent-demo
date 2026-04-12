@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
-import { DemoVideo } from "@/components/landing/demo-video";
+import {
+  DemoVideo,
+  isDemoVideoEmbedFromEnv,
+  resolveDemoVideoEmbedUrl,
+} from "@/components/landing/demo-video";
 import { cn } from "@/lib/utils";
 import {
   ArrowRight,
@@ -23,7 +27,8 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  const embedUrl = process.env.NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL;
+  const embedUrl = resolveDemoVideoEmbedUrl();
+  const embedFromEnv = isDemoVideoEmbedFromEnv();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 text-slate-900">
@@ -140,17 +145,25 @@ export default function HomePage() {
           <DemoVideo embedUrl={embedUrl} />
           <p className="mt-3 text-center text-xs text-slate-500">
             {embedUrl ? (
-              <>
-                Video is embedded from your configured URL (e.g. YouTube). For local MP4-only
-                playback, unset <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL</code> and add{" "}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">public/f5-demo.mp4</code> via{" "}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">pnpm demo:publish-video</code>.
-              </>
+              embedFromEnv ? (
+                <>
+                  Video is embedded from{" "}
+                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL</code>. For local MP4-only
+                  playback, run <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">pnpm dev</code> without that env and add{" "}
+                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">public/f5-demo.mp4</code> via{" "}
+                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">pnpm demo:publish-video</code>.
+                </>
+              ) : (
+                <>
+                  Production uses the hosted YouTube walkthrough by default. Set{" "}
+                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL</code> to override.
+                </>
+              )
             ) : (
               <>
                 Locally, <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">pnpm showcase:full</code> copies the MP4 to{" "}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">public/f5-demo.mp4</code>. For Vercel or Cloudflare, set{" "}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL</code> to a YouTube embed URL instead of shipping a large file.
+                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">public/f5-demo.mp4</code>, or set{" "}
+                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL</code> to a YouTube embed URL.
               </>
             )}
           </p>

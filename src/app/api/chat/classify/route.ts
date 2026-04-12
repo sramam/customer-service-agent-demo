@@ -1,6 +1,9 @@
 import { classifyRoute } from "@/lib/agents/router";
 import { prisma } from "@/lib/prisma";
+import { requireOpenAiKeyResponse } from "@/lib/require-openai";
 import type { UIMessage } from "ai";
+
+export const runtime = "nodejs";
 
 /**
  * Lightweight classification endpoint — determines whether a customer message
@@ -10,6 +13,9 @@ import type { UIMessage } from "ai";
  * relevant messages so the agent dashboard picks them up immediately.
  */
 export async function POST(req: Request) {
+  const missingKey = requireOpenAiKeyResponse();
+  if (missingKey) return missingKey;
+
   const {
     messages,
     conversationId,

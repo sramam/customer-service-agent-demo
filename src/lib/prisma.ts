@@ -13,27 +13,51 @@ function ensureVercelBundledDbOnTmp(): void {
   if (g[vercelCopyFlag]) return;
   g[vercelCopyFlag] = true;
 
-  const bundled = path.join(process.cwd(), "prisma", "dev.db");
+  const cwd = process.cwd();
+  const candidates = [
+    path.join(cwd, "prisma", "dev.db"),
+    path.join(cwd, "dev.db"),
+  ];
+
   const runtime = "/tmp/f5-poc.db";
   try {
     if (existsSync(runtime)) {
       unlinkSync(runtime);
     }
-    if (existsSync(bundled)) {
-      copyFileSync(bundled, runtime);
+    let bundled: string | undefined;
+    for (const p of candidates) {
+      if (existsSync(p)) {
+        bundled = p;
+        break;
+      }
     }
-  } catch {
-    // Writable /tmp copy failed — adapter may still open an empty file.
+    if (bundled) {
+      copyFileSync(bundled, runtime);
+    } else {
+      console.error(
+        "[prisma] Vercel: bundled SQLite not found. Tried:",
+        candidates,
+        "cwd=",
+        cwd
+      );
+    }
+  } catch (e) {
+    console.error("[prisma] Vercel: copy dev.db → /tmp failed:", e);
   }
 }
 
+/**
+ * Local dev: DATABASE_URL=file:... or prisma/dev.db.
+ * Vercel: **always** file:/tmp/f5-poc.db — do not use DATABASE_URL from pasted .env (e.g. file:./dev.db)
+ * or SQLite hits SQLITE_CANTOPEN on the read-only serverless filesystem.
+ */
 function sqliteFileUrl(): string {
+  if (process.env.VERCEL === "1") {
+    return "file:/tmp/f5-poc.db";
+  }
   const fromEnv = process.env.DATABASE_URL;
   if (fromEnv?.startsWith("file:")) {
     return fromEnv;
-  }
-  if (process.env.VERCEL === "1") {
-    return "file:/tmp/f5-poc.db";
   }
   return "file:" + path.join(process.cwd(), "prisma", "dev.db");
 }
@@ -46,6 +70,5 @@ function createClient() {
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma ?? createClient();
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma =
+  globalForPrisma.prisma ?? (globalForPrisma.prisma = createClient());

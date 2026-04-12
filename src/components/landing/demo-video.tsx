@@ -1,6 +1,26 @@
+/** Hosted walkthrough — used when env is unset in production (e.g. Vercel without env vars). */
+export const DEFAULT_DEMO_VIDEO_EMBED_URL =
+  "https://www.youtube.com/embed/PMbFpey0IRc";
+
 /**
- * Landing walkthrough: use NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL in production (e.g. YouTube embed URL)
- * to avoid bundling a large MP4. Falls back to /f5-demo.mp4 for local dev after pnpm demo:publish-video.
+ * Env override, else YouTube embed in production, else undefined (local MP4 via /f5-demo.mp4).
+ */
+export function resolveDemoVideoEmbedUrl(): string | undefined {
+  const fromEnv = process.env.NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL?.trim();
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV === "production") {
+    return DEFAULT_DEMO_VIDEO_EMBED_URL;
+  }
+  return undefined;
+}
+
+export function isDemoVideoEmbedFromEnv(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL?.trim());
+}
+
+/**
+ * Landing walkthrough: NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL overrides; production defaults to YouTube.
+ * Local dev falls back to /f5-demo.mp4 after pnpm demo:publish-video.
  */
 export function DemoVideo({ embedUrl }: { embedUrl?: string | null }) {
   const trimmed = embedUrl?.trim();
