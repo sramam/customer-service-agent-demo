@@ -1,0 +1,11 @@
+{
+  "name": "f5-realtime",
+  "compatibilityDate": "2026-04-12",
+  "main": "party/conversation.ts",
+  "parties": {
+    "escalations": "party/escalations.ts"
+  },
+  "vars": {
+    "PARTYKIT_SECRET": "local-dev-partykit-secret"
+  }
+}

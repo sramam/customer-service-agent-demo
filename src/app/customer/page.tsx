@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { EscalationBanner } from "@/components/chat/escalation-banner";
-import {
-  ConversationList,
-  type ConversationSummary,
-} from "@/components/agent-dashboard/conversation-list";
 import { ReviewControls } from "@/components/agent-dashboard/review-controls";
-import { CustomerInfoCard } from "@/components/agent-dashboard/customer-info-card";
+import { AgentCustomerHeader } from "@/components/agent-dashboard/agent-customer-header";
 import {
   AgentThreadMessageBody,
   EmployeeAiChatBubbleBody,
@@ -22,13 +18,31 @@ import {
 import { ProductBadge } from "@/components/product-icon";
 import { DocViewerPanel, type DocViewerState } from "@/components/doc-viewer-dialog";
 import { parseCustomerResponse } from "@/lib/parse-response";
-import { parseEmployeeResponse } from "@/lib/parse-response";
 import {
-  extractEscalationReasonFromMessage,
-  looksLikeEscalationProse,
-} from "@/lib/escalation-ui";
+  displayEmployeeAiUserText,
+  EMPLOYEE_AI_SUGGEST_DRAFT_PROMPT,
+  getLastNonEmptyAssistantText,
+} from "@/lib/employee-ai-ui";
+import { parseEmployeeResponse } from "@/lib/parse-response";
+import { useCustomerEscalationSyncFromDb } from "@/hooks/use-customer-escalation-sync-from-db";
 import { cn } from "@/lib/utils";
+import { useAgentThreadRealtime } from "@/hooks/use-agent-thread-realtime";
+import { useAgentConversationSync } from "@/hooks/use-agent-conversation-sync";
+import { useCustomerMessagePartykit } from "@/hooks/use-customer-message-partykit";
+import { useConversationsPartykit } from "@/hooks/use-conversations-partykit";
+import { EmployeeAiBusyBar } from "@/components/agent-dashboard/employee-ai-busy-bar";
+import { AgentEscalationsBurger } from "@/components/agent-dashboard/agent-thread-menu";
+import { F5_CONVERSATION_MESSAGES_UPDATED } from "@/lib/agent-sync-events";
+import { useEmployeeAiAutoKickoff } from "@/hooks/use-employee-ai-auto-kickoff";
+import { useEmployeeAiRefreshOnCustomerMessage } from "@/hooks/use-employee-ai-refresh-on-customer-message";
+import { useEmployeeAiScrollFollow } from "@/hooks/use-employee-ai-scroll-follow";
+import { useAgentThreadTailIntoView } from "@/hooks/use-agent-thread-tail-into-view";
 import { useChatInputFocus } from "@/hooks/use-chat-input-focus";
+import { isChatBusy } from "@/lib/chat-in-flight";
+import { useChatStreamAutoRetry } from "@/hooks/use-chat-stream-auto-retry";
+import { CLIENT_STREAM_AUTO_RETRY_MAX } from "@/lib/ai-retry";
+import { CustomerThreadPicker } from "@/components/customer/customer-thread-picker";
+import { useDemoCustomerClaim } from "@/hooks/use-demo-customer-claim";
 import Image from "next/image";
 import {
   Send,
@@ -117,7 +131,13 @@ function getStarterQuestions(products: string[]): string[] {
 
 // ─── Customer Panel ──────────────────────────────────────────────────────────
 
-function CustomerPicker({ onSelect }: { onSelect: (email: string) => void }) {
+function CustomerPicker({
+  onSelect,
+  isProfileInUse,
+}: {
+  onSelect: (email: string) => void | Promise<void>;
+  isProfileInUse: (email: string) => boolean;
+}) {
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-lg mx-auto">
@@ -125,33 +145,63 @@ function CustomerPicker({ onSelect }: { onSelect: (email: string) => void }) {
           <Image src="/logos/f5.svg" alt="F5" width={28} height={28} />
           <div>
             <h1 className="text-lg font-bold tracking-tight">F5 Support Chat</h1>
-            <p className="text-xs text-muted-foreground">Select your account to begin</p>
+            <p className="text-xs text-muted-foreground">
+              Select your account to begin. Each profile can only be used in one browser session at
+              a time for this demo.
+            </p>
           </div>
         </div>
         <div className="space-y-3">
-          {CUSTOMERS.map((c) => (
-            <button
-              key={c.email}
-              type="button"
-              data-testid={`demo-select-customer-${c.email.replace(/[@.]/g, "-")}`}
-              onClick={() => onSelect(c.email)}
-              className="group w-full border rounded-lg p-4 bg-white hover:border-blue-300 hover:shadow-sm transition-all text-left cursor-pointer"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <div className="font-semibold text-sm group-hover:text-blue-700 transition-colors">{c.name}</div>
-                  <div className="text-xs text-muted-foreground">{c.company}</div>
+          {CUSTOMERS.map((c) => {
+            const inUse = isProfileInUse(c.email);
+            return (
+              <button
+                key={c.email}
+                type="button"
+                disabled={inUse}
+                data-testid={`demo-select-customer-${c.email.replace(/[@.]/g, "-")}`}
+                onClick={() => void onSelect(c.email)}
+                title={
+                  inUse
+                    ? "Another previewer is using this demo profile — choose a different customer or try again later."
+                    : undefined
+                }
+                className={cn(
+                  "group w-full border rounded-lg p-4 bg-white text-left transition-all",
+                  inUse
+                    ? "opacity-55 cursor-not-allowed border-slate-200 bg-slate-50"
+                    : "hover:border-blue-300 hover:shadow-sm cursor-pointer",
+                )}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <div
+                      className={cn(
+                        "font-semibold text-sm transition-colors",
+                        !inUse && "group-hover:text-blue-700",
+                      )}
+                    >
+                      {c.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{c.company}</div>
+                  </div>
+                  {inUse ? (
+                    <span className="text-[10px] font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                      In use
+                    </span>
+                  ) : (
+                    <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-blue-600 transition-colors mt-0.5" />
+                  )}
                 </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-blue-600 transition-colors mt-0.5" />
-              </div>
-              <div className="text-[10px] text-muted-foreground mb-2">{c.plan}</div>
-              <div className="flex flex-wrap gap-1">
-                {c.products.map((p) => (
-                  <ProductBadge key={p} name={p} size="xs" />
-                ))}
-              </div>
-            </button>
-          ))}
+                <div className="text-[10px] text-muted-foreground mb-2">{c.plan}</div>
+                <div className="flex flex-wrap gap-1">
+                  {c.products.map((p) => (
+                    <ProductBadge key={p} name={p} size="xs" />
+                  ))}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -162,10 +212,12 @@ function CustomerChatInline({
   email,
   onBack,
   onEscalation,
+  onNewConversation,
 }: {
   email: string;
   onBack: () => void;
   onEscalation: (conversationId: string) => void;
+  onNewConversation: () => void;
 }) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [escalated, setEscalated] = useState(false);
@@ -190,10 +242,12 @@ function CustomerChatInline({
     const hdr = res.headers.get("X-Conversation-Id");
     if (hdr && hdr !== convIdRef.current) {
       convIdRef.current = hdr;
+      // Sync before React re-renders so the next sendMessage() uses this id (avoids a 2nd /api/chat creating a duplicate conversation).
+      bodyRef.current = { conversationId: hdr, customerEmail: email };
       setConversationId(hdr);
     }
     return res;
-  }, []);
+  }, [email]);
 
   const transport = useMemo(
     () => new DefaultChatTransport({
@@ -204,46 +258,92 @@ function CustomerChatInline({
     [customFetch]
   );
 
-  const { messages, status, sendMessage, setMessages } = useChat({ transport });
+  const customerStreamRetry = useChatStreamAutoRetry(conversationId);
+
+  const {
+    messages,
+    status,
+    sendMessage,
+    setMessages,
+    regenerate: regenerateCustomer,
+    clearError: clearCustomerChatError,
+  } = useChat({
+    transport,
+    onError: customerStreamRetry.onError,
+    onFinish: customerStreamRetry.onFinish,
+  });
+
+  useLayoutEffect(() => {
+    customerStreamRetry.setRetryDeps(clearCustomerChatError, regenerateCustomer);
+  }, [customerStreamRetry, clearCustomerChatError, regenerateCustomer]);
+
+  useEffect(() => {
+    customerStreamRetry.syncStatus(status);
+  }, [status, customerStreamRetry]);
+
+  useCustomerEscalationSyncFromDb(
+    conversationId,
+    status,
+    messages.length,
+    setEscalated,
+    setEscalationReason,
+    onEscalation,
+  );
+
+  useCustomerMessagePartykit(escalated, conversationId, setMessages);
+
+  /** Agent "Send to Customer" persists via API; merge into this chat so the left pane updates. */
+  useEffect(() => {
+    function handleAgentSentToCustomer(e: Event) {
+      const ce = e as CustomEvent<{
+        conversationId: string;
+        content: string;
+      }>;
+      const { conversationId: cid, content } = ce.detail ?? {};
+      if (!cid || !content?.trim() || cid !== conversationId) return;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant" as const,
+          parts: [{ type: "text" as const, text: content }],
+        },
+      ]);
+    }
+    window.addEventListener(
+      "f5-customer-sent-from-agent",
+      handleAgentSentToCustomer,
+    );
+    return () =>
+      window.removeEventListener(
+        "f5-customer-sent-from-agent",
+        handleAgentSentToCustomer,
+      );
+  }, [conversationId, setMessages]);
 
   useEffect(() => {
     if (conversationId) convIdRef.current = conversationId;
   }, [conversationId]);
 
   useEffect(() => {
-    if (
-      pendingText &&
-      messages.length > msgCountAtSubmit.current &&
-      messages.at(-1)?.role === "assistant"
-    ) {
+    if (!pendingText || isChatBusy(status)) return;
+    if (messages.length <= msgCountAtSubmit.current) return;
+    const last = messages.at(-1);
+    const done =
+      last?.role === "assistant" ||
+      (escalated && last?.role === "user");
+    if (done) {
       setPendingText(null);
       busyRef.current = false;
-    }
-  }, [pendingText, messages]);
-
-  useEffect(() => {
-    if (escalated || status === "streaming") return;
-    const lastMsg = messages.at(-1);
-    if (!lastMsg || lastMsg.role !== "assistant") return;
-
-    let reason = extractEscalationReasonFromMessage(lastMsg);
-    if (!reason) {
-      const text =
-        lastMsg.parts
-          ?.filter((p) => p.type === "text")
-          .map((p) => p.text)
-          .join("") ?? "";
-      if (text && looksLikeEscalationProse(text)) {
-        reason = "Escalated to human agent";
+      if (escalated && last?.role === "user" && convIdRef.current) {
+        window.dispatchEvent(
+          new CustomEvent(F5_CONVERSATION_MESSAGES_UPDATED, {
+            detail: { conversationId: convIdRef.current },
+          }),
+        );
       }
     }
-    if (!reason) return;
-
-    setEscalated(true);
-    setEscalationReason(reason);
-    const cid = convIdRef.current ?? conversationId;
-    if (cid) onEscalation(cid);
-  }, [messages, status, escalated, onEscalation, conversationId]);
+  }, [pendingText, messages, status, escalated]);
 
   const starterQuestions = useMemo(() => getStarterQuestions(customer.products), [customer.products]);
 
@@ -274,7 +374,7 @@ function CustomerChatInline({
 
   const submitQuestion = useCallback(
     (text: string) => {
-      if (!text.trim() || escalated || busyRef.current) return;
+      if (!text.trim() || busyRef.current || isChatBusy(status)) return;
       busyRef.current = true;
       msgCountAtSubmit.current = messages.length;
       if (suggestionsRef.current) {
@@ -285,11 +385,10 @@ function CustomerChatInline({
       setPendingText(text);
       sendMessage({ text });
     },
-    [messages.length, escalated, sendMessage]
+    [messages.length, sendMessage, status]
   );
 
-  const canTypeCustomer =
-    !escalated && pendingText === null && status !== "streaming";
+  const canTypeCustomer = pendingText === null && !isChatBusy(status);
   const customerInputRef = useChatInputFocus({
     canType: canTypeCustomer,
     status,
@@ -304,6 +403,24 @@ function CustomerChatInline({
           <button onClick={onBack} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
             <ArrowLeft className="h-4 w-4" />
           </button>
+          <CustomerThreadPicker
+            email={email}
+            activeConversationId={conversationId}
+            onNewConversation={onNewConversation}
+            onThreadLoaded={({
+              conversationId: cid,
+              status,
+              escalationReason: er,
+              messages: ms,
+            }) => {
+              convIdRef.current = cid;
+              bodyRef.current = { conversationId: cid, customerEmail: email };
+              setConversationId(cid);
+              setEscalated(status === "ESCALATED");
+              setEscalationReason(er);
+              setMessages(ms);
+            }}
+          />
           <div>
             <div className="text-sm font-semibold">{customer.name}</div>
             <div className="text-[11px] text-muted-foreground">{customer.company} — {email}</div>
@@ -320,10 +437,10 @@ function CustomerChatInline({
         escalationBanner={escalated ? <EscalationBanner reason={escalationReason} context="customer" /> : undefined}
         onViewDoc={handleViewDoc}
         pendingUserText={pendingText}
-        thinking={pendingText !== null}
+        thinking={pendingText !== null && isChatBusy(status)}
       />
 
-      {suggestedQuestions.length > 0 && !escalated && pendingText === null && status !== "streaming" && (
+      {suggestedQuestions.length > 0 && !escalated && pendingText === null && !isChatBusy(status) && (
         <div className="px-3" ref={suggestionsRef}>
           <div className="flex flex-wrap gap-1.5 pb-2">
             {suggestedQuestions.map((q, i) => (
@@ -341,11 +458,13 @@ function CustomerChatInline({
           data-testid="demo-customer-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={escalated ? "Waiting for a human agent…" : "Message…"}
-          disabled={escalated || pendingText !== null || status === "streaming"}
+          placeholder={
+            escalated ? "Reply to support…" : "Message…"
+          }
+          disabled={pendingText !== null || isChatBusy(status)}
           className="flex-1 text-sm"
         />
-        <Button type="submit" size="icon" disabled={escalated || pendingText !== null || !input.trim() || status === "streaming"}>
+        <Button type="submit" size="icon" disabled={pendingText !== null || !input.trim() || isChatBusy(status)}>
           <Send className="h-4 w-4" />
         </Button>
       </form>
@@ -360,12 +479,15 @@ function CustomerChatInline({
 // ─── Agent Panel ─────────────────────────────────────────────────────────────
 
 function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const { conversations, loading, refetch } = useConversationsPartykit();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  useAgentThreadRealtime(selectedId, refetch);
+  useAgentConversationSync(refetch);
   const [input, setInput] = useState("");
   const [docViewer, setDocViewer] = useState<DocViewerState | null>(null);
+  const employeeScrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const threadTailRef = useRef<HTMLDivElement>(null);
 
   const handleViewDoc = useCallback((scope: "public" | "internal", file: string, title: string) => {
     setDocViewer({ scope, file, title });
@@ -373,27 +495,17 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
 
-  const fetchConversations = useCallback(async () => {
-    try {
-      const res = await fetch("/api/conversations");
-      const data = await res.json();
-      setConversations(data);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchConversations();
-    const interval = setInterval(fetchConversations, 3000);
-    return () => clearInterval(interval);
-  }, [fetchConversations]);
+  const visibleThreadMessages = useMemo(
+    () => selected?.messages.filter((m) => m.audience !== "INTERNAL_ONLY") ?? [],
+    [selected?.messages],
+  );
+  const lastThreadMessageId = visibleThreadMessages[visibleThreadMessages.length - 1]?.id;
 
   useEffect(() => {
     if (autoSelectId) {
-      fetchConversations();
+      void refetch();
     }
-  }, [autoSelectId, fetchConversations]);
+  }, [autoSelectId, refetch]);
 
   useEffect(() => {
     if (autoSelectId && conversations.some((c) => c.id === autoSelectId)) {
@@ -401,8 +513,17 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
     }
   }, [autoSelectId, conversations]);
 
-  const agentBodyRef = useRef({ conversationId: selectedId });
-  agentBodyRef.current = { conversationId: selectedId };
+  const employeeStreamRetry = useChatStreamAutoRetry(selectedId);
+
+  const agentBodyRef = useRef({
+    conversationId: selectedId,
+    streamRetryAttempt: 0,
+    streamRetryMax: CLIENT_STREAM_AUTO_RETRY_MAX,
+  });
+  agentBodyRef.current = {
+    conversationId: selectedId,
+    ...employeeStreamRetry.getStreamRetryMetaForBody(),
+  };
 
   const agentTransport = useMemo(
     () => new DefaultChatTransport({
@@ -412,26 +533,77 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
     []
   );
 
-  const { messages: aiMessages, status, sendMessage, setMessages } = useChat({
+  const {
+    messages: aiMessages,
+    status,
+    sendMessage,
+    setMessages,
+    stop,
+    error: employeeAiError,
+    clearError: clearEmployeeAiError,
+    regenerate: regenerateEmployee,
+  } = useChat({
     transport: agentTransport,
+    onError: employeeStreamRetry.onError,
+    onFinish: employeeStreamRetry.onFinish,
   });
 
-  useEffect(() => { setMessages([]); setInput(""); }, [selectedId, setMessages]);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMessages]);
+  useLayoutEffect(() => {
+    employeeStreamRetry.setRetryDeps(clearEmployeeAiError, regenerateEmployee);
+  }, [employeeStreamRetry, clearEmployeeAiError, regenerateEmployee]);
 
-  const lastAI = [...aiMessages].reverse().find((m) => m.role === "assistant");
-  const lastAIText = lastAI?.parts?.filter((p) => p.type === "text").map((p) => p.text).join("");
+  useEffect(() => {
+    employeeStreamRetry.syncStatus(status);
+  }, [status, employeeStreamRetry]);
+
+  useEmployeeAiAutoKickoff(
+    selectedId,
+    setMessages,
+    setInput,
+    sendMessage,
+    EMPLOYEE_AI_SUGGEST_DRAFT_PROMPT,
+    status,
+    stop,
+  );
+
+  useEmployeeAiRefreshOnCustomerMessage(
+    selectedId,
+    selected?.messages,
+    setMessages,
+    setInput,
+    sendMessage,
+    EMPLOYEE_AI_SUGGEST_DRAFT_PROMPT,
+    status,
+    stop,
+  );
+
+  useEmployeeAiScrollFollow(
+    employeeScrollRef,
+    bottomRef,
+    aiMessages,
+    selectedId,
+  );
+
+  useAgentThreadTailIntoView(threadTailRef, selectedId, lastThreadMessageId);
+
+  const lastAIText = getLastNonEmptyAssistantText(aiMessages);
   const parsed = lastAIText ? parseEmployeeResponse(lastAIText) : null;
 
   const handleAISend = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || !selectedId) return;
+    if (!text || !selectedId || isChatBusy(status)) return;
     setInput("");
     sendMessage({ text });
-  }, [input, selectedId, sendMessage]);
+  }, [input, selectedId, sendMessage, status]);
 
-  const canTypeAgent = !!selectedId && status !== "streaming";
+  const handleSuggestEmployeeDraft = useCallback(() => {
+    if (!selectedId || isChatBusy(status)) return;
+    clearEmployeeAiError();
+    sendMessage({ text: EMPLOYEE_AI_SUGGEST_DRAFT_PROMPT });
+  }, [selectedId, status, sendMessage, clearEmployeeAiError]);
+
+  const canTypeAgent = !!selectedId && !isChatBusy(status);
   const agentInputRef = useChatInputFocus({
     canType: canTypeAgent,
     status,
@@ -440,56 +612,56 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
   });
 
   return (
-    <div className="flex flex-1 min-h-0 relative">
-      {/* Conversation list sidebar */}
-      <div className="w-64 border-r flex flex-col shrink-0">
-        <div className="px-3 py-3 border-b flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Escalations</h2>
-          <Button variant="ghost" size="icon" onClick={fetchConversations} className="h-7 w-7">
-            <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-        <div className="flex-1 overflow-y-auto min-h-0">
-          {loading ? (
-            <div className="p-4 text-xs text-muted-foreground text-center">Loading...</div>
-          ) : (
-            <ConversationList conversations={conversations} selectedId={selectedId} onSelect={setSelectedId} />
-          )}
-        </div>
+    <div className="flex flex-1 min-h-0 relative flex-col">
+      <div className="flex items-center gap-2 border-b px-2 py-1.5 shrink-0">
+        <AgentEscalationsBurger
+          conversations={conversations}
+          loading={loading}
+          selectedId={selectedId}
+          onSelect={(id) => {
+            setSelectedId(id);
+            void refetch();
+          }}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => void refetch()}
+          className="h-7 w-7"
+          title="Refresh"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+        </Button>
       </div>
 
-      {/* Main agent area — min-h-0 so nested flex children can shrink and scroll */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {!selected ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <div className="text-center space-y-2">
+            <div className="text-center space-y-2 px-2">
               <Headset className="h-10 w-10 mx-auto opacity-20" />
-              <p className="text-xs">Select a conversation to begin.</p>
+              <p className="text-xs">Open the menu (☰) to choose a conversation.</p>
             </div>
           </div>
         ) : (
           <>
-            <div className="px-4 py-2.5 border-b shrink-0 space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold">{selected.customer?.name ?? selected.customerEmail}</h2>
-                  <p className="text-[10px] text-muted-foreground">Conv {selected.id.slice(0, 8)}...</p>
-                </div>
-                <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", selected.status === "ESCALATED" ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800")}>
-                  {selected.status}
-                </span>
-              </div>
-              {selected.customer && <CustomerInfoCard customer={selected.customer} />}
-            </div>
+            <AgentCustomerHeader
+              key={selected.id}
+              title={selected.customer?.name ?? selected.customerEmail}
+              conversationIdPreview={`${selected.id.slice(0, 8)}...`}
+              status={selected.status}
+              customer={selected.customer ?? null}
+              variant="compact"
+            />
 
             {/* Single scroll: conversation + employee workspace read as one continuous thread */}
             <div
+              ref={employeeScrollRef}
               data-testid="demo-agent-work-scroll"
               className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
             >
               <div className="py-3 px-2 flex flex-col gap-2">
                 {selected.escalationReason && <EscalationBanner reason={selected.escalationReason} context="employee" />}
-                {selected.messages.filter((m) => m.audience !== "INTERNAL_ONLY").map((msg) => {
+                {visibleThreadMessages.map((msg) => {
                   const isCustomer = msg.role === "user";
                   const isSystem = msg.role === "system";
                   let label = "";
@@ -553,6 +725,7 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
                     </div>
                   );
                 })}
+                <div ref={threadTailRef} className="h-px w-full shrink-0 scroll-mt-2" aria-hidden />
               </div>
 
               <Separator />
@@ -561,8 +734,22 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
                 <div>
                   <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Employee AI (internal)</h3>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Scroll with the conversation above. Customer-facing text is only what you send from the draft below.
+                    When you select a thread, Employee AI runs automatically. Internal notes stream in the chat; the
+                    customer-facing draft is only in the Draft Customer Response panel (not duplicated in the
+                    chat bubble). Use &quot;Suggest internal notes + draft&quot; to refresh after new customer
+                    messages. Only text you approve from the draft panel goes to the customer.
                   </p>
+                  <EmployeeAiBusyBar busy={isChatBusy(status)} />
+                  {employeeAiError && (
+                    <p
+                      className="text-[10px] text-red-900 bg-red-50 border border-red-200 rounded px-2 py-1.5 mt-2"
+                      role="alert"
+                    >
+                      Employee AI hit an error (often a transient OpenAI{" "}
+                      <code className="font-mono text-[9px]">server_error</code>). Up to three automatic retries run with
+                      backoff; if this message remains, use &quot;Suggest internal notes + draft&quot; again.
+                    </p>
+                  )}
                 </div>
                 {aiMessages.length > 0 && (
                   <div className="flex max-w-full flex-col gap-2">
@@ -570,6 +757,9 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
                       const text = msg.parts?.filter((p) => p.type === "text").map((p) => p.text).join("");
                       if (!text) return null;
                       const isUser = msg.role === "user";
+                      const bubbleText = isUser
+                        ? displayEmployeeAiUserText(text)
+                        : text;
                       return (
                         <div
                           key={msg.id}
@@ -592,7 +782,7 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
                             )}
                           >
                             <div className="min-w-0 overflow-x-auto">
-                              <EmployeeAiChatBubbleBody text={text} isUser={isUser} />
+                              <EmployeeAiChatBubbleBody text={bubbleText} isUser={isUser} />
                             </div>
                           </div>
                         </div>
@@ -601,12 +791,24 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
                     <div ref={bottomRef} />
                   </div>
                 )}
-                <form onSubmit={handleAISend} className="flex gap-2">
-                  <Input ref={agentInputRef} data-testid="demo-employee-ai-input" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask the Employee AI (internal)…" disabled={status === "streaming"} className="flex-1 bg-white text-xs min-w-0" />
-                  <Button type="submit" data-testid="demo-employee-ai-send" size="icon" disabled={!input.trim() || status === "streaming"} className="h-8 w-8 shrink-0">
-                    <Send className="h-3.5 w-3.5" />
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="self-start text-xs h-7"
+                    disabled={!selectedId || isChatBusy(status)}
+                    onClick={handleSuggestEmployeeDraft}
+                  >
+                    Suggest internal notes + draft
                   </Button>
-                </form>
+                  <form onSubmit={handleAISend} className="flex gap-2">
+                    <Input ref={agentInputRef} data-testid="demo-employee-ai-input" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask the Employee AI (internal)…" disabled={isChatBusy(status)} className="flex-1 bg-white text-xs min-w-0" />
+                    <Button type="submit" data-testid="demo-employee-ai-send" size="icon" disabled={!input.trim() || isChatBusy(status)} className="h-8 w-8 shrink-0">
+                      <Send className="h-3.5 w-3.5" />
+                    </Button>
+                  </form>
+                </div>
                 {parsed && selectedId && (
                   <div className="pt-1">
                     <ReviewControls
@@ -614,7 +816,7 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
                       draftResponse={parsed.draftCustomerResponse}
                       citations={parsed.citations}
                       conversationId={selectedId}
-                      onSent={() => { fetchConversations(); setMessages([]); }}
+                      onSent={() => { void refetch(); setMessages([]); }}
                       onViewDoc={handleViewDoc}
                     />
                   </div>
@@ -636,8 +838,40 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
 
 function SplitDemoPage() {
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
+  /** Bumps when a customer is chosen from the picker so each "start" gets a fresh conversation id. */
+  const [customerChatSession, setCustomerChatSession] = useState(0);
   const [agentOpen, setAgentOpen] = useState(false);
   const [autoSelectConvId, setAutoSelectConvId] = useState<string | null>(null);
+
+  const demoClaim = useDemoCustomerClaim(selectedEmail);
+
+  const handleSelectCustomer = useCallback(
+    async (email: string) => {
+      try {
+        const ok = await demoClaim.tryClaim(email);
+        if (!ok) {
+          window.alert(
+            "This demo profile is in use in another browser or tab. Choose a different customer, or try again after the other session goes idle (~90s).",
+          );
+          return;
+        }
+        setSelectedEmail(email);
+        setCustomerChatSession((s) => s + 1);
+      } catch (e) {
+        window.alert(
+          e instanceof Error ? e.message : "Could not reserve this demo profile. Try again.",
+        );
+      }
+    },
+    [demoClaim],
+  );
+
+  const handleClaimLostDismiss = useCallback(() => {
+    demoClaim.clearClaimLost();
+    setSelectedEmail(null);
+    setAgentOpen(false);
+    setAutoSelectConvId(null);
+  }, [demoClaim]);
 
   const handleEscalation = useCallback((conversationId: string) => {
     setAgentOpen(true);
@@ -664,13 +898,40 @@ function SplitDemoPage() {
         </div>
 
         {!selectedEmail ? (
-          <CustomerPicker onSelect={setSelectedEmail} />
-        ) : (
-          <CustomerChatInline
-            email={selectedEmail}
-            onBack={() => { setSelectedEmail(null); setAgentOpen(false); setAutoSelectConvId(null); }}
-            onEscalation={handleEscalation}
+          <CustomerPicker
+            onSelect={handleSelectCustomer}
+            isProfileInUse={demoClaim.isLockedForPicker}
           />
+        ) : (
+          <div className="relative flex flex-1 min-h-0 flex-col">
+            {demoClaim.claimLost && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/90 p-6">
+                <div className="max-w-sm rounded-lg border border-amber-200 bg-amber-50 p-4 text-center shadow-sm">
+                  <p className="text-sm font-medium text-amber-950">
+                    This demo profile is active in another session
+                  </p>
+                  <p className="mt-2 text-xs text-amber-900/90">
+                    Another previewer may have taken over after this tab went idle, or you opened the
+                    same profile elsewhere. Return to the list to pick a different customer.
+                  </p>
+                  <Button className="mt-4" type="button" onClick={handleClaimLostDismiss}>
+                    Back to customer list
+                  </Button>
+                </div>
+              </div>
+            )}
+            <CustomerChatInline
+              key={`${selectedEmail}-${customerChatSession}`}
+              email={selectedEmail}
+              onNewConversation={() => setCustomerChatSession((s) => s + 1)}
+              onBack={() => {
+                setSelectedEmail(null);
+                setAgentOpen(false);
+                setAutoSelectConvId(null);
+              }}
+              onEscalation={handleEscalation}
+            />
+          </div>
         )}
       </div>
 

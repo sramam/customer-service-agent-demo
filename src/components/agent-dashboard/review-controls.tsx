@@ -36,11 +36,21 @@ export function ReviewControls({
     if (!editedDraft.trim()) return;
     setSending(true);
     try {
-      await fetch(`/api/conversations/${conversationId}/approve`, {
+      const res = await fetch(`/api/conversations/${conversationId}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: editedDraft }),
       });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        console.error("[ReviewControls] approve failed", res.status, errBody);
+        return;
+      }
+      window.dispatchEvent(
+        new CustomEvent("f5-customer-sent-from-agent", {
+          detail: { conversationId, content: editedDraft },
+        }),
+      );
       onSent();
     } finally {
       setSending(false);
@@ -81,33 +91,7 @@ export function ReviewControls({
 
   return (
     <div className="border rounded-lg overflow-hidden relative isolate bg-white shadow-sm" data-testid="demo-review-controls">
-      {internalNotes && (
-        <div className="bg-gray-100 border-b p-4" data-testid="demo-internal-notes">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="h-4 w-4 text-gray-500" />
-            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-              Internal Notes — Not sent to customer
-            </span>
-          </div>
-          <p className="text-[11px] text-gray-500 mb-3">
-            Internal docs, runbooks, and agent-only context stay here. Only the draft below is sent to the customer.
-            Reusing internal wording in a customer reply is a deliberate copy-and-paste—never merged automatically.
-          </p>
-          <div className="text-gray-800 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:first:mt-0 [&_h2]:text-base [&_h2]:font-semibold">
-            <MarkdownContent
-              content={internalNotes}
-              className="[&_*]:select-text [&_a]:pointer-events-auto"
-            />
-          </div>
-          {internalCitations.length > 0 && (
-            <div className="mt-3 pt-2 border-t border-gray-300/50 space-y-1 pointer-events-auto">
-              {internalCitations.map((c, i) => renderCitationRow(c, i))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="p-4 bg-white">
+      <div className="p-4 bg-white border-b">
         <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-2">
           Draft Customer Response — Editable
         </div>
@@ -137,6 +121,32 @@ export function ReviewControls({
           </Button>
         </div>
       </div>
+
+      {internalNotes && (
+        <div className="bg-gray-100 p-4" data-testid="demo-internal-notes">
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="h-4 w-4 text-gray-500" />
+            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              Internal Notes — Not sent to customer
+            </span>
+          </div>
+          <p className="text-[11px] text-gray-500 mb-3">
+            Internal docs, runbooks, and agent-only context stay here. Only the draft above is sent to the customer.
+            Reusing internal wording in a customer reply is a deliberate copy-and-paste—never merged automatically.
+          </p>
+          <div className="text-gray-800 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:first:mt-0 [&_h2]:text-base [&_h2]:font-semibold">
+            <MarkdownContent
+              content={internalNotes}
+              className="[&_*]:select-text [&_a]:pointer-events-auto"
+            />
+          </div>
+          {internalCitations.length > 0 && (
+            <div className="mt-3 pt-2 border-t border-gray-300/50 space-y-1 pointer-events-auto">
+              {internalCitations.map((c, i) => renderCitationRow(c, i))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

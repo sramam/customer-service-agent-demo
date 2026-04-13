@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
@@ -10,18 +10,24 @@ import { ChatPanel } from "@/components/chat/chat-panel";
 import { EscalationBanner } from "@/components/chat/escalation-banner";
 import { Send, ArrowLeft } from "lucide-react";
 import { parseCustomerResponse } from "@/lib/parse-response";
-import {
-  extractEscalationReasonFromMessage,
-  looksLikeEscalationProse,
-} from "@/lib/escalation-ui";
+import { extractEscalationReasonFromMessage } from "@/lib/escalation-ui";
+import { useCustomerEscalationSyncFromDb } from "@/hooks/use-customer-escalation-sync-from-db";
 import Link from "next/link";
 import { Suspense } from "react";
+import { useCustomerMessagePartykit } from "@/hooks/use-customer-message-partykit";
 import { useChatInputFocus } from "@/hooks/use-chat-input-focus";
+import { isChatBusy } from "@/lib/chat-in-flight";
+import { useChatStreamAutoRetry } from "@/hooks/use-chat-stream-auto-retry";
+import { CustomerThreadPicker } from "@/components/customer/customer-thread-picker";
+import { F5_CONVERSATION_MESSAGES_UPDATED } from "@/lib/agent-sync-events";
 
-function CustomerChat() {
-  const searchParams = useSearchParams();
-  const customerEmail = searchParams.get("email") ?? "alice@acmecorp.com";
-
+function CustomerChat({
+  email: customerEmail,
+  onNewConversation,
+}: {
+  email: string;
+  onNewConversation?: () => void;
+}) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [escalated, setEscalated] = useState(false);
   const [escalationReason, setEscalationReason] = useState("");
@@ -39,10 +45,11 @@ function CustomerChat() {
     const hdr = res.headers.get("X-Conversation-Id");
     if (hdr && hdr !== convIdRef.current) {
       convIdRef.current = hdr;
+      bodyRef.current = { conversationId: hdr, customerEmail };
       setConversationId(hdr);
     }
     return res;
-  }, []);
+  }, [customerEmail]);
 
   const transport = useMemo(
     () => new DefaultChatTransport({
@@ -53,39 +60,69 @@ function CustomerChat() {
     [customFetch]
   );
 
-  const { messages, status, sendMessage, setMessages } = useChat({ transport });
+  const customerStreamRetry = useChatStreamAutoRetry(conversationId);
+
+  const {
+    messages,
+    status,
+    sendMessage,
+    setMessages,
+    regenerate: regenerateCustomer,
+    clearError: clearCustomerChatError,
+  } = useChat({
+    transport,
+    onError: customerStreamRetry.onError,
+    onFinish: customerStreamRetry.onFinish,
+  });
+
+  useLayoutEffect(() => {
+    customerStreamRetry.setRetryDeps(clearCustomerChatError, regenerateCustomer);
+  }, [customerStreamRetry, clearCustomerChatError, regenerateCustomer]);
+
+  useEffect(() => {
+    customerStreamRetry.syncStatus(status);
+  }, [status, customerStreamRetry]);
+
+  useCustomerEscalationSyncFromDb(
+    conversationId,
+    status,
+    messages.length,
+    setEscalated,
+    setEscalationReason,
+  );
+
+  useCustomerMessagePartykit(escalated, conversationId, setMessages);
 
   useEffect(() => {
     if (conversationId) convIdRef.current = conversationId;
   }, [conversationId]);
 
   useEffect(() => {
-    if (
-      pendingText &&
-      messages.length > msgCountAtSubmit.current &&
-      messages.at(-1)?.role === "assistant"
-    ) {
+    if (!pendingText || isChatBusy(status)) return;
+    if (messages.length <= msgCountAtSubmit.current) return;
+    const last = messages.at(-1);
+    const done =
+      last?.role === "assistant" ||
+      (escalated && last?.role === "user");
+    if (done) {
       setPendingText(null);
       busyRef.current = false;
+      if (escalated && last?.role === "user" && convIdRef.current) {
+        window.dispatchEvent(
+          new CustomEvent(F5_CONVERSATION_MESSAGES_UPDATED, {
+            detail: { conversationId: convIdRef.current },
+          }),
+        );
+      }
     }
-  }, [pendingText, messages]);
+  }, [pendingText, messages, status, escalated]);
 
   useEffect(() => {
-    if (escalated || status === "streaming") return;
+    if (escalated || isChatBusy(status)) return;
     const lastMsg = messages.at(-1);
     if (!lastMsg || lastMsg.role !== "assistant") return;
 
-    let reason = extractEscalationReasonFromMessage(lastMsg);
-    if (!reason) {
-      const text =
-        lastMsg.parts
-          ?.filter((p) => p.type === "text")
-          .map((p) => p.text)
-          .join("") ?? "";
-      if (text && looksLikeEscalationProse(text)) {
-        reason = "Escalated to human agent";
-      }
-    }
+    const reason = extractEscalationReasonFromMessage(lastMsg);
     if (!reason) return;
 
     setEscalated(true);
@@ -120,7 +157,7 @@ function CustomerChat() {
 
   const submitQuestion = useCallback(
     (text: string) => {
-      if (!text.trim() || escalated || busyRef.current) return;
+      if (!text.trim() || busyRef.current || isChatBusy(status)) return;
       busyRef.current = true;
       msgCountAtSubmit.current = messages.length;
       if (suggestionsRef.current) {
@@ -131,7 +168,7 @@ function CustomerChat() {
       setPendingText(text);
       sendMessage({ text });
     },
-    [messages.length, escalated, sendMessage]
+    [messages.length, sendMessage, status]
   );
 
   const handleSend = useCallback(
@@ -142,7 +179,7 @@ function CustomerChat() {
     [input, submitQuestion]
   );
 
-  const canType = !escalated && pendingText === null && status !== "streaming";
+  const canType = pendingText === null && !isChatBusy(status);
   const inputRef = useChatInputFocus({ canType, status, setInput });
 
   return (
@@ -155,16 +192,38 @@ function CustomerChat() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
+          {onNewConversation && (
+            <CustomerThreadPicker
+              email={customerEmail}
+              activeConversationId={conversationId}
+              onNewConversation={onNewConversation}
+              onThreadLoaded={({
+                conversationId: cid,
+                status,
+                escalationReason: er,
+                messages: ms,
+              }) => {
+                convIdRef.current = cid;
+                bodyRef.current = { conversationId: cid, customerEmail };
+                setConversationId(cid);
+                setEscalated(status === "ESCALATED");
+                setEscalationReason(er);
+                setMessages(ms);
+              }}
+            />
+          )}
           <div>
             <h1 className="text-lg font-semibold">F5 Support Chat</h1>
             <p className="text-xs text-muted-foreground">{customerEmail}</p>
           </div>
         </div>
-        {escalated && (
-          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
-            Escalated
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {escalated && (
+            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
+              Escalated
+            </span>
+          )}
+        </div>
       </header>
 
       <ChatPanel
@@ -176,10 +235,10 @@ function CustomerChat() {
           ) : undefined
         }
         pendingUserText={pendingText}
-        thinking={pendingText !== null}
+        thinking={pendingText !== null && isChatBusy(status)}
       />
 
-      {suggestedQuestions.length > 0 && !escalated && pendingText === null && status !== "streaming" && (
+      {suggestedQuestions.length > 0 && !escalated && pendingText === null && !isChatBusy(status) && (
         <div className="px-4 max-w-3xl mx-auto w-full" ref={suggestionsRef}>
           <div className="flex flex-wrap gap-2 pb-2">
             {suggestedQuestions.map((q, i) => (
@@ -204,22 +263,46 @@ function CustomerChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={
-            escalated
-              ? "Waiting for a human agent…"
-              : "Message…"
+            escalated ? "Reply to support…" : "Message…"
           }
-          disabled={escalated || pendingText !== null || status === "streaming"}
+          disabled={pendingText !== null || isChatBusy(status)}
           className="flex-1"
         />
         <Button
           type="submit"
           size="icon"
-          disabled={escalated || pendingText !== null || !input.trim() || status === "streaming"}
+          disabled={pendingText !== null || !input.trim() || isChatBusy(status)}
         >
           <Send className="h-4 w-4" />
         </Button>
       </form>
     </div>
+  );
+}
+
+function CustomerChatStandaloneShell() {
+  const searchParams = useSearchParams();
+  const email = searchParams.get("email") ?? "alice@acmecorp.com";
+  const [sessionKey, setSessionKey] = useState(0);
+  const prevEmailRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (prevEmailRef.current === null) {
+      prevEmailRef.current = email;
+      return;
+    }
+    if (prevEmailRef.current !== email) {
+      prevEmailRef.current = email;
+      setSessionKey((k) => k + 1);
+    }
+  }, [email]);
+
+  return (
+    <CustomerChat
+      key={`${email}-${sessionKey}`}
+      email={email}
+      onNewConversation={() => setSessionKey((k) => k + 1)}
+    />
   );
 }
 
@@ -232,7 +315,7 @@ export default function CustomerChatPage() {
         </div>
       }
     >
-      <CustomerChat />
+      <CustomerChatStandaloneShell />
     </Suspense>
   );
 }

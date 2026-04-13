@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 /**
  * If `conversationId` is missing or not in the DB (stale client id after reset),
  * create a new conversation. Otherwise return the existing id.
+ *
+ * Call **only** from customer-facing APIs (e.g. `POST /api/chat`). Agents must not
+ * create conversations; they open existing threads for a customer.
  */
 export async function ensureCustomerConversation(
   conversationId: string | undefined,

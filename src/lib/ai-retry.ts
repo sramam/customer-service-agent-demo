@@ -4,13 +4,20 @@
  * maxRetries: 2 → up to 3 total attempts per `streamText` / `generateText` call.
  *
  * Streaming routes (`/api/chat`, `/api/agent-chat`) use only SDK retries to avoid
- * duplicate persisted messages. Routing (`classifyRoute`) uses `withAiAttempts`
- * so intermittent **non-retryable** provider errors still get extra tries.
+ * duplicate persisted messages. Other callers may use `withAiAttempts` for extra
+ * tries on intermittent **non-retryable** provider errors.
  */
 export const AI_SDK_MAX_RETRIES = 2;
 
-/** Extra SDK retries for `/api/agent-chat` (transient provider errors during streaming). */
+/**
+ * Extra SDK retries for `/api/agent-chat` (transient provider errors on the **initial**
+ * API call). Mid-stream `server_error` chunks (HTTP 200 then error in the SSE body) are
+ * generally **not** retried — the client should offer a manual retry (e.g. Suggest draft).
+ */
 export const AI_AGENT_STREAM_MAX_RETRIES = 4;
+
+/** Client `useChatStreamAutoRetry` max attempts; `streamRetryMax` on `/api/agent-chat` must match. */
+export const CLIENT_STREAM_AUTO_RETRY_MAX = 3;
 
 export const AI_OUTER_ATTEMPTS = 3;
 

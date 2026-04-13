@@ -58,7 +58,7 @@ showcase — Playwright demo capture + Remotion asset copy (+ optional render)
   pnpm showcase -- --skip-record --render
       Re-render MP4 from last recording without re-recording
 
-Environment: OPENAI_API_KEY, optional PLAYWRIGHT_SKIP_WEBSERVER if dev server already running.
+Environment: OPENAI_API_KEY, optional PLAYWRIGHT_SKIP_WEBSERVER if dev server already running (when set, run dev with E2E_BYPASS_DEMO_CLAIM=1 so /api/demo/customer-claim matches Playwright; spawned webServer sets this automatically).
 `);
 }
 

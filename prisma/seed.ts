@@ -228,6 +228,7 @@ const customers: CustomerSeed[] = [
 
 async function main() {
   await prisma.message.deleteMany();
+  await prisma.demoCustomerClaim.deleteMany();
   await prisma.conversation.deleteMany();
   await prisma.invoice.deleteMany();
   await prisma.customerAccount.deleteMany();

@@ -26,18 +26,13 @@ async function waitForCustomerAiIdle(page: Page) {
   await input.waitFor({ state: "attached" });
   // Disabled while the model streams or a send is in flight
   await expect(input).toBeDisabled();
-  // After the reply: either the field is editable again, or escalation locked it
-  // ("Waiting for a human agent…") — that is still a valid "idle" end state.
+  // After the reply: input is enabled again (including after escalation — customer can reply to support).
   await expect
     .poll(
-      async () => {
-        if (await input.isEnabled()) return "ready";
-        const ph = await input.getAttribute("placeholder");
-        return ph?.includes("Waiting for a human agent") ? "escalated" : "busy";
-      },
+      async () => ((await input.isEnabled()) ? "ready" : "busy"),
       { timeout: 180_000 }
     )
-    .toMatch(/ready|escalated/);
+    .toBe("ready");
 }
 
 async function sendCustomerMessage(page: Page, text: string) {
@@ -47,34 +42,29 @@ async function sendCustomerMessage(page: Page, text: string) {
 }
 
 /**
- * After clicking send: input is only disabled while `useChat` status is `streaming`.
- * On API errors or very fast completions, streaming may never flip — so we do not rely
- * on disabled. Wait for the /api/agent-chat POST to finish (body drained) instead.
+ * Wait for Employee AI turn to finish using the UI busy bar (`demo-employee-ai-busy`),
+ * which tracks `useChat` submitted/streaming (works for OpenAI, Claude fallback, long tools).
+ * Falls back to input enabled if the busy state flashed too fast to observe.
  */
 async function clickEmployeeAiSendAndWaitForDone(page: Page) {
-  const responsePromise = page.waitForResponse(
-    (r) =>
-      r.url().includes("/api/agent-chat") &&
-      r.request().method() === "POST",
-    { timeout: 180_000 }
-  );
   await page.getByTestId("demo-employee-ai-send").click();
-  const res = await responsePromise;
+  const busy = page.getByTestId("demo-employee-ai-busy");
+  const input = page.getByTestId("demo-employee-ai-input");
   try {
-    await res.text();
+    await expect(busy).toBeVisible({ timeout: 30_000 });
   } catch {
-    /* aborted or unreadable body */
+    await expect(input).toBeEnabled({ timeout: 120_000 });
+    return;
   }
-  await expect(page.getByTestId("demo-employee-ai-input")).toBeEnabled({
-    timeout: 60_000,
-  });
+  await expect(busy).toBeHidden({ timeout: 600_000 });
+  await expect(input).toBeEnabled({ timeout: 120_000 });
 }
 
 const EMPLOYEE_DEMO_PROMPT = [
   "Using internal and public docs, produce INTERNAL NOTES with:",
   "(1) Escalation handoff and SOP-style next steps,",
   "(2) a line that references internal runbook material that must NOT be copied to the customer,",
-  "(3) a DRAFT CUSTOMER RESPONSE offering to help with BIG-IP LTM cancellation.",
+  "(3) a DRAFT CUSTOMER RESPONSE offering to help with NGINX One cancellation.",
   "Use the required ---INTERNAL NOTES--- / ---DRAFT CUSTOMER RESPONSE--- / ---METADATA--- sections.",
 ].join(" ");
 
@@ -157,22 +147,30 @@ test("F5 support demo — docs, account, escalation, agent workspace", async ({ 
   await page.goto("/customer");
 
   await test.step("Select demo customer (Alice / Acme)", async () => {
+    const claimPut = page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/demo/customer-claim") &&
+        r.request().method() === "PUT" &&
+        r.ok(),
+      { timeout: 60_000 },
+    );
     await page.getByTestId("demo-select-customer-alice-acmecorp-com").click();
+    await claimPut;
     await expect(page.getByTestId("demo-customer-input")).toBeVisible();
   });
 
   await test.step("1–3: Technical questions (public documentation)", async () => {
     await sendCustomerMessage(
       page,
-      "What traffic management features does BIG-IP LTM offer?"
+      "What's included in NGINX One?"
     );
     await sendCustomerMessage(
       page,
-      "How do health monitors work on BIG-IP LTM?"
+      "How do I configure load balancing in NGINX One?"
     );
     await sendCustomerMessage(
       page,
-      "What is the difference between a pool and a pool member on BIG-IP LTM?"
+      "What monitoring and observability does NGINX One offer?"
     );
     demoTimelineMark("selfServiceDocs");
   });
@@ -185,7 +183,7 @@ test("F5 support demo — docs, account, escalation, agent workspace", async ({ 
   await test.step("4: Account change — clarify then escalate", async () => {
     await sendCustomerMessage(page, "I want to change my subscriptions");
     // Prefer product chip if shown (customer-voice label)
-    const chip = page.getByRole("button", { name: "BIG-IP LTM", exact: true });
+    const chip = page.getByRole("button", { name: "NGINX One", exact: true });
     if (await chip.isVisible().catch(() => false)) {
       await chip.click();
       await waitForCustomerAiIdle(page);
@@ -195,7 +193,7 @@ test("F5 support demo — docs, account, escalation, agent workspace", async ({ 
     if (await customerInput.isEnabled()) {
       await sendCustomerMessage(
         page,
-        "I want to cancel BIG-IP LTM. Please escalate to a human to process this."
+        "I want to cancel NGINX One. Please escalate to a human to process this."
       );
     }
   });
@@ -231,15 +229,21 @@ test("F5 support demo — docs, account, escalation, agent workspace", async ({ 
       await demoSlowScrollInternalNotesThenDraft(page);
     });
     demoTimelineMark("draftCustomer");
-    await draft.fill(
-      (await draft.inputValue()) +
-        "\n\n— Edited by agent for demo video."
-    );
     demoTimelineMark("approveSend");
   });
 
   await test.step("Send approved reply to customer", async () => {
-    await page.getByTestId("demo-send-to-customer").click();
+    const draft = page.getByTestId("demo-draft-response");
+    const send = page.getByTestId("demo-send-to-customer");
+    await expect(draft).toBeVisible({ timeout: 60_000 });
+    // Send stays disabled while draft is empty; Playwright click() waits for enabled (actionable).
+    if (!(await draft.inputValue()).trim()) {
+      await draft.fill(
+        "Thank you — a specialist will follow up on your NGINX One cancellation request shortly.",
+      );
+    }
+    await expect(send).toBeEnabled({ timeout: 60_000 });
+    await send.click();
     await expect(page.getByText(/Agent \(You\)/i).first()).toBeVisible({
       timeout: 30_000,
     });

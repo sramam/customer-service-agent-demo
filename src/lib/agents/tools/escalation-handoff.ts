@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** Shared with /api/chat requestEscalation tool — keep in sync with customer prompt. */
+/** Input schema for `requestEscalation` on `POST /api/chat`. */
 export const requestEscalationInputSchema = z.object({
   changeSummary: z
     .string()

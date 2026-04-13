@@ -52,3 +52,10 @@ model Message {
   audience       String       @default("CUSTOMER_VISIBLE")
   createdAt      DateTime     @default(now())
 }
+
+/// Demo POC: at most one active session per preview customer email (see /api/demo/customer-claim).
+model DemoCustomerClaim {
+  customerEmail String   @id
+  sessionId     String
+  updatedAt     DateTime @updatedAt
+}

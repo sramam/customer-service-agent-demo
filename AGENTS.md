@@ -41,7 +41,7 @@ The app models **two lanes**:
 ## Customer AI (`/api/chat`)
 
 - **Model & system prompt:** `src/lib/agents/customer.ts`, `CUSTOMER_SYSTEM` + `CUSTOMER_RESPONSE_FORMAT_INSTRUCTION` from `src/lib/types.ts`.
-- **Tools:** `searchPublicDocs`, `getAccountInfo`, `listInvoices`, and an inline `requestEscalation` tool **defined in** `src/app/api/chat/route.ts` (uses `escalation-handoff.ts`). The standalone `src/lib/agents/tools/escalation.ts` is not imported by that route — keep schema changes in `escalation-handoff.ts` + the route tool.
+- **Tools:** `listPublicProductDocs`, `searchPublicDocs`, `getAccountInfo`, `listInvoices`, and an inline `requestEscalation` tool **defined in** `src/app/api/chat/route.ts` (uses `escalation-handoff.ts`). Keep schema changes in `escalation-handoff.ts` + the route tool.
 - **Streaming:** `streamText` with `stopWhen: stepCountIs(8)` to allow multi-step gather + tools.
 - **Persistence:** Creates conversation if needed; stores last user message; `onFinish` persists assistant text; escalation tool + backup scan in `onFinish` set `ESCALATED` and system line.
 
@@ -57,15 +57,16 @@ The app models **two lanes**:
 ## Employee AI (`/api/agent-chat`)
 
 - **Model & system prompt:** `src/lib/agents/employee.ts` + `EMPLOYEE_RESPONSE_FORMAT_INSTRUCTION` in `src/lib/types.ts`.
-- **Tools:** `searchPublicDocs`, `searchInternalDocs`, `getAccountInfo`, `listInvoices`, `updateAccount`, `createCreditMemo`.
+- **Tools:** `listPublicProductDocs`, `searchPublicDocs`, `searchInternalDocs`, `getAccountInfo`, `listInvoices`, `updateAccount`, `createCreditMemo`.
 - **Context injection:** Route loads conversation + customer account; appends **customer profile**, **escalation reason**, and **customer-visible message history** to the system prompt. Employee `useChat` messages are persisted as `role: employee`, `audience: INTERNAL_ONLY`.
 - **Streaming:** `stopWhen: stepCountIs(8)`; `onFinish` stores full assistant text as `employee-ai` / internal-only for audit.
+- **Client:** When the customer posts a new message on the open thread, `useEmployeeAiRefreshOnCustomerMessage` stops the Employee AI stream, clears the copilot, and re-sends the suggest-draft kickoff so internal notes/draft track the latest thread (`/agent` and split-view agent column).
 
 ### Design choices (employee)
 
 - **Strict separation:** `---INTERNAL NOTES---` = agent-only (internal docs, risk, runbook logic). `---DRAFT CUSTOMER RESPONSE---` = **only** text safe to send to the customer; must be valid markdown for `MarkdownContent`, no internal secrets. `---METADATA---` JSON lists citations; internal-doc entries support notes; public/account/invoice entries support the draft.
 - **Unstructured replies:** If the model returns **no** delimiter sections, `parseEmployeeResponse` treats the entire body as **internal notes** and leaves **draft empty** — so conversational answers to the employee never populate the customer draft by accident.
-- **Prompt emphasis:** Internal notes should be dense (escalation recap, thread snapshot, facts, gaps, probable customer moves, clarifiers, upsell ideas). Draft should be the **best next customer message**, ready to send.
+- **Prompt emphasis:** Internal notes are **incremental only** — new tool/doc findings and deltas; avoid repeating escalation reason or thread already shown in the UI. Draft should be the **best next customer message**, ready to send.
 
 ---
 
@@ -81,6 +82,15 @@ The app models **two lanes**:
 - Conversation `status` transitions include `WITH_CUSTOMER_AI` → `ESCALATED` (and optionally resolved elsewhere).
 - Customer-visible system row: `Escalated to human agent: …` with built reason string.
 - **Client:** Escalation reason for banners is extracted from tool parts (`tool-requestEscalation`) via `src/lib/escalation-ui.ts`, with prose fallback helper where needed.
+
+### Multi-conversation, realtime, and employee AI context
+
+- Only **customer** flows create new `Conversation` rows (`ensureCustomerConversation` in `POST /api/chat`). Agents open existing threads only.
+- Customers can list their threads: `GET /api/conversations/customer?email=…`, and load customer-visible messages with `GET /api/conversations/[id]/customer-messages` (burger menu on customer surfaces).
+- **PartyKit** after a customer-visible insert: `notifyPartyConversationMessage` sends a minimal `{ type: customer_thread_updated, conversationId, messageId }` signal; the customer UI **pulls** from the GET route to stay consistent and avoid shipping full text on the wire.
+- **Same-tab split demo:** when the customer finishes sending a message on an escalated thread, the app dispatches `f5-conversation-messages-updated` so the agent pane **refetches** immediately (PartyKit/polling can lag). Full `/agent` page still relies on PartyKit + polling when the customer is in another tab.
+- **Employee AI** (`POST /api/agent-chat`): `streamText` `messages` are assembled from the database via `buildEmployeeModelMessages` (customer-visible + internal rows in order); the system prompt carries profile and escalation summary, not a second copy of the whole thread.
+- **Agent dashboard / split agent column:** escalations are chosen from a **burger menu** (`AgentEscalationsBurger`) — no sidebar rail; the menu lists all escalated threads from the same data as `GET /api/conversations`.
 
 ### End-to-end flow (diagram)
 
@@ -142,8 +152,7 @@ sequenceDiagram
 | `GET /api/conversations` | List escalations + enriched customer snapshot |
 | `POST /api/conversations/[id]/approve` | Post human-approved customer message |
 | `GET /api/invoices/download?key=…` | Invoice PDF proxy |
-| `POST /api/chat/classify` | Optional classifier / alternate path (not the primary customer flow if the app calls `/api/chat` directly) |
-| `POST /api/escalate` | Manual escalation helper (if used) |
+| `GET /api/docs` | Read-only doc listing / file content (`scope`, optional `file`) for dev/inspector UIs |
 
 ---
 
@@ -161,6 +170,7 @@ sequenceDiagram
 | Customer agent | `src/lib/agents/customer.ts`, `src/lib/types.ts` (customer format) |
 | Employee agent | `src/lib/agents/employee.ts`, `src/lib/types.ts` (employee format) |
 | Escalation schema | `src/lib/agents/tools/escalation-handoff.ts` |
+| Public doc catalog | `src/lib/public-doc-catalog.ts` (product focus for `searchPublicDocs`) |
 | Chat API | `src/app/api/chat/route.ts` |
 | Agent chat API | `src/app/api/agent-chat/route.ts` |
 | Parsing | `src/lib/parse-response.ts` |

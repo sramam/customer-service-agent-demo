@@ -4,6 +4,31 @@ import { useRef, useEffect } from "react";
 import { MessageBubble } from "./message-bubble";
 import type { UIMessage } from "ai";
 
+function textFromMessage(m: UIMessage): string {
+  return (
+    m.parts
+      ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join("") ?? ""
+  );
+}
+
+function normalizeText(s: string) {
+  return s.trim().replace(/\s+/g, " ");
+}
+
+/** True if any user bubble already matches the pending send (avoids duplicate bubble vs useChat). */
+function hasUserMessageForPending(
+  messages: UIMessage[],
+  pending: string | null,
+): boolean {
+  if (!pending?.trim()) return false;
+  const n = normalizeText(pending);
+  return messages.some(
+    (m) => m.role === "user" && normalizeText(textFromMessage(m)) === n,
+  );
+}
+
 function ThinkingIndicator({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 self-start bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 max-w-[80%]">
@@ -40,7 +65,9 @@ export function ChatPanel({
 
   const thinkingLabel = context === "customer" ? "F5 Support" : "Employee AI";
 
-  const showPending = pendingUserText && messages.at(-1)?.role !== "user";
+  const showPending =
+    !!pendingUserText &&
+    !hasUserMessageForPending(messages, pendingUserText ?? null);
 
   return (
     <div className="flex-1 overflow-y-auto min-h-0 px-4">

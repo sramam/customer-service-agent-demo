@@ -10,10 +10,12 @@ import { cn } from "@/lib/utils";
 import {
   ArrowRight,
   BarChart3,
+  BookOpen,
   ExternalLink,
   Headset,
   Layers,
   MessageSquare,
+  Radio,
   Shield,
   Sparkles,
 } from "lucide-react";
@@ -23,7 +25,7 @@ const SOURCE_REPO_URL = "https://github.com/sramam/customer-service-agent-demo";
 export const metadata: Metadata = {
   title: "F5 AI customer service — demo",
   description:
-    "Human-supervised, AI-built full-stack customer service demo: self-service, escalation, agent workspace, Remotion video with ElevenLabs voice-over.",
+    "Two-lane AI demo: customer chat from public docs + read-only account data, structured escalation, and an agent workspace with employee AI (internal notes + reviewed customer draft). Thread sync via PartyKit or polling. Neon + AI SDK 6.",
 };
 
 export default function HomePage() {
@@ -38,13 +40,16 @@ export default function HomePage() {
             Demo project
           </p>
           <h1 className="text-balance text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
-            AI-assisted customer service with human escalation
+            Two-lane AI: customer self-service and an agent copilot
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-slate-600">
-            A full-stack agent where customers self-serve technical and account questions from
-            trusted sources. Changes to systems of record escalate to people—for accuracy and
-            commercial follow-up—while the agent workspace keeps internal documents separate from
-            anything sent to the customer.
+            <strong className="font-medium text-slate-800">Customer AI</strong> answers from public
+            product documentation and read-only account tools—never mutating billing or
+            subscriptions. <strong className="font-medium text-slate-800">Employee AI</strong>{" "}
+            backs the human with internal runbooks plus read/write account tools, and always
+            separates <strong className="font-medium text-slate-800">internal notes</strong> from a{" "}
+            <strong className="font-medium text-slate-800">draft customer reply</strong> the agent
+            reviews before anything is sent. Escalation hands off in-thread with structured context.
           </p>
         </header>
 
@@ -74,82 +79,55 @@ export default function HomePage() {
             <li className="flex gap-3">
               <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
               <span>
-                <strong className="text-slate-900">Customer</strong> chat grounded in public
-                documentation—with citations—and read-only account views.
+                <strong className="text-slate-900">Customer AI</strong> — search public product
+                docs (optional product-line focus), read-only account and invoice views, inline
+                citations, and suggested chips that send as the customer&apos;s next message when
+                tapped.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
+              <span>
+                <strong className="text-slate-900">Documentation</strong> — markdown sources under{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                  content/docs
+                </code>
+                ; agents can list product areas and narrow search so answers stay on-topic.
               </span>
             </li>
             <li className="flex gap-3">
               <Shield className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
               <span>
-                <strong className="text-slate-900">Escalation</strong> when a change needs a human;
-                the agent sees profile, products, and context in one place.
+                <strong className="text-slate-900">Escalation</strong> — structured handoff
+                (summary, products involved, agent context) into the same chat; the dashboard
+                surfaces escalated threads without a sidebar rail.
               </span>
             </li>
             <li className="flex gap-3">
               <Headset className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
               <span>
-                <strong className="text-slate-900">Agent + employee AI</strong> with internal
-                notes and an editable, auto-formed customer reply—internal text never ships by
-                accident.
+                <strong className="text-slate-900">Agent workspace + employee AI</strong> — public
+                and <em>internal</em> docs plus account tools; responses split into{" "}
+                <strong className="text-slate-900">internal notes</strong> and a{" "}
+                <strong className="text-slate-900">draft customer reply</strong> the human edits and
+                sends. Nothing internal goes to the customer unless it is copied into that draft.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <Radio className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+              <span>
+                <strong className="text-slate-900">Live thread sync</strong> — the agent view stays
+                current after customer messages and approved replies:{" "}
+                <strong className="text-slate-900">PartyKit</strong> WebSockets when{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                  NEXT_PUBLIC_PARTYKIT_HOST
+                </code>{" "}
+                is set, otherwise automatic polling (~3s) plus refetch when you return to the tab.
+                Same-tab split view also fires an instant refresh so the agent column doesn&apos;t wait
+                on the network.
               </span>
             </li>
           </ul>
-        </section>
-
-        <section className="mb-12 md:mb-14">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
-            <Layers className="h-4 w-4 text-slate-500" aria-hidden />
-            Tech stack
-          </h2>
-          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-700 shadow-sm">
-            <div>
-              <h3 className="mb-1.5 font-medium text-slate-900">App &amp; UI</h3>
-              <p className="text-slate-600">
-                Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · shadcn-style UI (Base UI, CVA) ·
-                Lucide icons
-              </p>
-            </div>
-            <div>
-              <h3 className="mb-1.5 font-medium text-slate-900">AI &amp; validation</h3>
-              <p className="text-slate-600">
-                Vercel AI SDK 6 · OpenAI (via AI SDK) · Zod
-              </p>
-            </div>
-            <div>
-              <h3 className="mb-1.5 font-medium text-slate-900">Data</h3>
-              <p className="text-slate-600">
-                Prisma 7 · PostgreSQL on Neon ·{" "}
-                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
-                  @prisma/adapter-neon
-                </code>{" "}
-                (pooled{" "}
-                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
-                  DATABASE_URL
-                </code>
-                , direct{" "}
-                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
-                  DIRECT_URL
-                </code>{" "}
-                for migrations) · one shared database for local dev and production in this POC
-              </p>
-            </div>
-            <div>
-              <h3 className="mb-1.5 font-medium text-slate-900">Content</h3>
-              <p className="text-slate-600">react-markdown · remark-gfm</p>
-            </div>
-            <div>
-              <h3 className="mb-1.5 font-medium text-slate-900">Testing &amp; demo media</h3>
-              <p className="text-slate-600">
-                Playwright (e2e) · Remotion 4 (walkthrough video) · ElevenLabs (voice-over)
-              </p>
-            </div>
-            <div>
-              <h3 className="mb-1.5 font-medium text-slate-900">Hosting &amp; tooling</h3>
-              <p className="text-slate-600">
-                Vercel (deploy) · same env pattern as <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">.env</code> — Neon URLs, OpenAI key · pnpm · ESLint
-              </p>
-            </div>
-          </div>
         </section>
 
         <section className="mb-12 md:mb-14">
@@ -183,7 +161,30 @@ export default function HomePage() {
           </p>
         </section>
 
-        <section className="mb-12 md:mb-14">
+        <section className="flex flex-col items-center gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-8 py-10 text-center">
+          <h2 className="text-lg font-semibold text-emerald-950">Try it yourself</h2>
+          <p className="max-w-md text-sm leading-relaxed text-slate-600">
+            Open the interactive split view at <strong className="text-slate-800">/customer</strong>:
+            customer chat on the left, agent column on the right (escalation list, thread, employee
+            AI, draft review). Requires{" "}
+            <code className="text-slate-700">OPENAI_API_KEY</code> and a Neon{" "}
+            <code className="text-slate-700">DATABASE_URL</code> (see{" "}
+            <code className="text-slate-700">.env.example</code>). Omitting PartyKit env vars still
+            works; you get polling-based sync instead of WebSockets.
+          </p>
+          <Link
+            href="/customer"
+            className={cn(
+              buttonVariants({ size: "lg" }),
+              "gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
+            )}
+          >
+            Launch interactive demo
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </section>
+
+        <section className="mt-12 md:mt-14 mb-12 md:mb-14">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
             <BarChart3 className="h-4 w-4 text-slate-500" aria-hidden />
             Token economics
@@ -224,23 +225,72 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="flex flex-col items-center gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-8 py-10 text-center">
-          <h2 className="text-lg font-semibold text-emerald-950">Try it yourself</h2>
-          <p className="max-w-md text-sm leading-relaxed text-slate-600">
-            Open the interactive split view: customer on the left, agent tools on the right—same
-            flow as in the recording (requires{" "}
-            <code className="text-slate-700">OPENAI_API_KEY</code>).
-          </p>
-          <Link
-            href="/customer"
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
-            )}
-          >
-            Launch interactive demo
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+        <section>
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+            <Layers className="h-4 w-4 text-slate-500" aria-hidden />
+            Tech stack
+          </h2>
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-700 shadow-sm">
+            <div>
+              <h3 className="mb-1.5 font-medium text-slate-900">App &amp; UI</h3>
+              <p className="text-slate-600">
+                Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · shadcn-style UI (Base UI, CVA) ·
+                Lucide icons
+              </p>
+            </div>
+            <div>
+              <h3 className="mb-1.5 font-medium text-slate-900">AI &amp; validation</h3>
+              <p className="text-slate-600">
+                Vercel AI SDK 6 · OpenAI (via AI SDK) · optional Anthropic fallback (
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                  ANTHROPIC_API_KEY
+                </code>
+                ) · Zod tool schemas (<code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">inputSchema</code>)
+              </p>
+            </div>
+            <div>
+              <h3 className="mb-1.5 font-medium text-slate-900">Live sync</h3>
+              <p className="text-slate-600">
+                Always on: PartyKit when configured, else polling · PartyKit dev/deploy (
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">pnpm party:dev</code>
+                ) · same-tab <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">f5-conversation-messages-updated</code> event for instant agent refresh
+              </p>
+            </div>
+            <div>
+              <h3 className="mb-1.5 font-medium text-slate-900">Data</h3>
+              <p className="text-slate-600">
+                Prisma 7 · PostgreSQL on Neon ·{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                  @prisma/adapter-neon
+                </code>{" "}
+                (pooled{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                  DATABASE_URL
+                </code>
+                , direct{" "}
+                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                  DIRECT_URL
+                </code>{" "}
+                for migrations) · one shared database for local dev and production in this POC
+              </p>
+            </div>
+            <div>
+              <h3 className="mb-1.5 font-medium text-slate-900">Content</h3>
+              <p className="text-slate-600">react-markdown · remark-gfm</p>
+            </div>
+            <div>
+              <h3 className="mb-1.5 font-medium text-slate-900">Testing &amp; demo media</h3>
+              <p className="text-slate-600">
+                Playwright (e2e) · Remotion 4 (walkthrough video) · ElevenLabs (voice-over)
+              </p>
+            </div>
+            <div>
+              <h3 className="mb-1.5 font-medium text-slate-900">Hosting &amp; tooling</h3>
+              <p className="text-slate-600">
+                Vercel (deploy) · same env pattern as <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">.env</code> — Neon URLs, OpenAI key · pnpm · ESLint
+              </p>
+            </div>
+          </div>
         </section>
 
         <footer className="mt-16 border-t border-slate-200 pt-8 text-center text-xs text-slate-500">

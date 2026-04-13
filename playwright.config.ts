@@ -33,5 +33,10 @@ export default defineConfig({
         timeout: 120_000,
         stdout: "pipe",
         stderr: "pipe",
+        env: {
+          ...process.env,
+          // Lets /api/demo/customer-claim succeed without DB contention (see route.ts).
+          E2E_BYPASS_DEMO_CLAIM: "1",
+        },
       },
 });

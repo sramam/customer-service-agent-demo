@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "F5 AI customer service demo", template: "%s · F5 demo" },
   description:
-    "AI-assisted customer service with escalation, agent workspace, and internal-vs-customer-safe replies.",
+    "Customer AI + employee AI demo: public docs, escalation, agent workspace with internal notes and reviewed drafts.",
 };
 
 export default function RootLayout({

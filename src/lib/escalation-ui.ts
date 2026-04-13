@@ -2,7 +2,7 @@ import type { UIMessage } from "ai";
 
 /**
  * AI SDK v6 represents tool UI parts as `type: "tool-<toolName>"` (e.g. `tool-requestEscalation`)
- * with `state`, `input`, and `output` — not `type: "tool-invocation"`.
+ * with `state`, `input`, and `output`. Also handles `dynamic-tool` with `toolName`.
  */
 function reasonFromToolPayload(input: unknown, output: unknown): string {
   const inp = input as
@@ -62,34 +62,7 @@ export function extractEscalationReasonFromMessage(
       }
     }
 
-    // Legacy shape (older SDK / examples)
-    if (part.type === "tool-invocation") {
-      const legacy = part as unknown as {
-        toolInvocation?: {
-          toolName?: string;
-          state?: string;
-          args?: { reason?: string };
-        };
-      };
-      const inv = legacy.toolInvocation;
-      if (
-        inv?.toolName === "requestEscalation" &&
-        inv.state === "result"
-      ) {
-        return inv.args?.reason ?? "Escalated to human agent";
-      }
-    }
   }
 
   return null;
-}
-
-/** Heuristic when the model describes escalation in prose but tool parts are missing. */
-export function looksLikeEscalationProse(text: string): boolean {
-  const t = text.toLowerCase();
-  return (
-    /escalat/.test(t) &&
-    (/human agent|specialist|support team|human support/.test(t) ||
-      /been escalated|request has been escalated/.test(t))
-  );
 }
