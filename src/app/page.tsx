@@ -195,13 +195,29 @@ export default function HomePage() {
           </p>
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/80">
+                  <th scope="col" className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Category
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Tokens
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Cost (USD)
+                  </th>
+                </tr>
+              </thead>
               <tbody className="divide-y divide-slate-100">
                 <tr>
                   <th scope="row" className="px-4 py-3 text-left font-medium text-slate-600">
                     Input tokens
                   </th>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
-                    5,740,089
+                    12,771,454
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
+                    $63.86
                   </td>
                 </tr>
                 <tr>
@@ -209,7 +225,10 @@ export default function HomePage() {
                     Output tokens
                   </th>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
-                    670,863
+                    1,314,797
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
+                    $32.87
                   </td>
                 </tr>
                 <tr>
@@ -217,7 +236,19 @@ export default function HomePage() {
                     Input cached tokens
                   </th>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
-                    106,106,448
+                    220,672,528
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
+                    $110.34
+                  </td>
+                </tr>
+                <tr className="border-t border-slate-200 bg-slate-50/60 font-medium">
+                  <th scope="row" className="px-4 py-3 text-left text-slate-800">
+                    Total
+                  </th>
+                  <td className="px-4 py-3 text-right text-slate-500">—</td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
+                    $207.06
                   </td>
                 </tr>
               </tbody>
