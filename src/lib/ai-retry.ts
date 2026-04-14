@@ -21,6 +21,9 @@ export const CLIENT_STREAM_AUTO_RETRY_MAX = 3;
 
 export const AI_OUTER_ATTEMPTS = 3;
 
+/** Schema validation retries after `streamText` completes (invalid Zod / UI contract). */
+export const AI_RESPONSE_SCHEMA_MAX_ATTEMPTS = 3;
+
 /** Outer attempts including the first try (default: {@link AI_OUTER_ATTEMPTS}). */
 export async function withAiAttempts<T>(
   fn: () => Promise<T>,

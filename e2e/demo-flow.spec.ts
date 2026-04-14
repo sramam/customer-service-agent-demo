@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { AI_OUTER_ATTEMPTS } from "../src/lib/ai-retry";
+import { sendCustomerMessage } from "./showcase-replay-drive";
 import {
   demoTimelineClockStart,
   demoTimelineMark,
@@ -35,12 +36,6 @@ async function waitForCustomerAiIdle(page: Page) {
     .toBe("ready");
 }
 
-async function sendCustomerMessage(page: Page, text: string) {
-  await page.getByTestId("demo-customer-input").fill(text);
-  await page.getByTestId("demo-customer-chat-form").locator('button[type="submit"]').click();
-  await waitForCustomerAiIdle(page);
-}
-
 /**
  * Wait for Employee AI turn to finish using the UI busy bar (`demo-employee-ai-busy`),
  * which tracks `useChat` submitted/streaming (works for OpenAI, Claude fallback, long tools).
@@ -65,7 +60,7 @@ const EMPLOYEE_DEMO_PROMPT = [
   "(1) Escalation handoff and SOP-style next steps,",
   "(2) a line that references internal runbook material that must NOT be copied to the customer,",
   "(3) a DRAFT CUSTOMER RESPONSE offering to help with NGINX One cancellation.",
-  "Use the required ---INTERNAL NOTES--- / ---DRAFT CUSTOMER RESPONSE--- / ---METADATA--- sections.",
+  "Use the required JSON shape: internalNotes, draftCustomerResponse, sources.",
 ].join(" ");
 
 /** OpenAI may return `server_error` in-stream (HTTP 200); UI then has no parseable draft. Retry sends. */
@@ -147,15 +142,23 @@ test("F5 support demo — docs, account, escalation, agent workspace", async ({ 
   await page.goto("/customer");
 
   await test.step("Select demo customer (Alice / Acme)", async () => {
+    const picker = page.getByTestId("demo-select-customer-alice-acmecorp-com");
+    await expect(picker).toBeEnabled({ timeout: 30_000 });
     const claimPut = page.waitForResponse(
       (r) =>
         r.url().includes("/api/demo/customer-claim") &&
-        r.request().method() === "PUT" &&
-        r.ok(),
+        r.request().method() === "PUT",
       { timeout: 60_000 },
     );
-    await page.getByTestId("demo-select-customer-alice-acmecorp-com").click();
-    await claimPut;
+    await picker.click();
+    const claimRes = await claimPut;
+    if (!claimRes.ok()) {
+      const body = await claimRes.text().catch(() => "");
+      throw new Error(
+        `Demo customer claim failed: HTTP ${claimRes.status()} ${body}. ` +
+          `If 409, add E2E_BYPASS_DEMO_CLAIM=1 to .env and restart pnpm dev.`,
+      );
+    }
     await expect(page.getByTestId("demo-customer-input")).toBeVisible();
   });
 
@@ -175,7 +178,7 @@ test("F5 support demo — docs, account, escalation, agent workspace", async ({ 
     demoTimelineMark("selfServiceDocs");
   });
 
-  await test.step("3: Read-only account — invoices", async () => {
+  await test.step("3: Invoices — account data they can only read", async () => {
     await sendCustomerMessage(page, "Can I download my latest invoice?");
     demoTimelineMark("billingView");
   });
@@ -221,11 +224,12 @@ test("F5 support demo — docs, account, escalation, agent workspace", async ({ 
     await expect(page.getByTestId("demo-internal-notes")).toBeVisible({
       timeout: 10_000,
     });
-    demoTimelineMark("internalNotes");
     const draft = page.getByTestId("demo-draft-response");
     await expect(draft).toBeVisible();
     await expect(draft).not.toHaveValue("", { timeout: 10_000 });
     await test.step("Slow scroll: internal notes → customer draft (demo video)", async () => {
+      // Mark = start of scroll so `videoAnchorSec` for internalNotes (play) aligns with Remotion.
+      demoTimelineMark("internalNotes");
       await demoSlowScrollInternalNotesThenDraft(page);
     });
     demoTimelineMark("draftCustomer");
@@ -247,6 +251,14 @@ test("F5 support demo — docs, account, escalation, agent workspace", async ({ 
     await expect(page.getByText(/Agent \(You\)/i).first()).toBeVisible({
       timeout: 30_000,
     });
+  });
+
+  await test.step("Customer acknowledges resolution", async () => {
+    await sendCustomerMessage(
+      page,
+      "Thanks — that answers my questions. I appreciate the help.",
+    );
+    demoTimelineMark("closingCta");
   });
 
   demoTimelineWriteFile(repoRoot);

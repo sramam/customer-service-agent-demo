@@ -23,7 +23,7 @@ export const OVERLAY_SCENES: OverlayScene[] = [
   {
     startSec: 18,
     durationSec: 12,
-    title: "Account & invoices (read-only)",
+    title: "Account & invoices (can only read)",
     subtitle:
       "Customers can see status and invoice downloads without exposing internal systems.",
   },

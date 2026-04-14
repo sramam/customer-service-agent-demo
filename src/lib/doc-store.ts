@@ -62,5 +62,5 @@ export async function searchDocs(
   if (chunks.length === 0) {
     return `No matches in ${scope} documentation for: ${query}.\nAvailable documents: ${files.join(", ")}`;
   }
-  return `IMPORTANT: Use only the exact filenames shown after "FILE:" for the docFile citation field.\n\n${chunks.join("\n\n---\n\n")}`;
+  return `IMPORTANT: Use only the exact filenames shown after "FILE:" for each source row's docFile field.\n\n${chunks.join("\n\n---\n\n")}`;
 }

@@ -38,6 +38,40 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Set the same env vars as in `.env.example` (at minimum `DATABASE_URL`, `DIRECT_URL`, `OPENAI_API_KEY`). The default build command runs `prisma generate`, `prisma migrate deploy`, then `next build`.
 
+## Demo video — background music
+
+After you render the MP4 (`pnpm demo:render` or `pnpm showcase:full`), mix **Creative Minds** from Bensound under the voiceover with **ffmpeg** (music stays low so narration is clear).
+
+1. Place **`bensound-creativeminds.mp3`** at the **repository root** (same folder as `package.json`).
+2. With [ffmpeg](https://ffmpeg.org/) on your `PATH`, run **one** of these from the repo root:
+
+   ```bash
+   ./mix-demo-music
+   ```
+
+   ```bash
+   pnpm mix-demo-music
+   ```
+
+   ```bash
+   node scripts/mix-demo-music.mjs
+   ```
+
+   (First time: `chmod +x mix-demo-music` so the standalone script is executable.)
+
+   This reads `remotion-out/f5-demo.mp4`, loops the bed track at low volume, and writes **`remotion-out/f5-demo-with-music.mp4`**. Override paths or level if needed:
+
+   ```bash
+   ./mix-demo-music -- --video remotion-out/f5-demo.mp4 --out remotion-out/f5-demo-with-music-custom.mp4
+   MUSIC_VOLUME=0.05 ./mix-demo-music
+   ```
+
+**Royalty Free Music:** [Bensound.com](https://www.bensound.com)
+
+**License code:** VGBKV94ABCICTAH6
+
+**Artist:** Benjamin Tissot
+
 ## License
 
 Private / demo — see repository settings.

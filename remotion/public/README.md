@@ -1,5 +1,7 @@
 # Demo video asset
 
+Background music is mixed **after** render with `ffmpeg` (see repo root [README.md](../../README.md) — **Demo video — background music**).
+
 Prerequisites (repo root): `pnpm install`, database seeded (`pnpm db:seed`), and `OPENAI_API_KEY` in `.env` (loaded automatically for Playwright via `dotenv` in `playwright.config.ts`).
 
 1. One command — record, copy WebM here, and render **`../remotion-out/f5-demo.mp4`**:

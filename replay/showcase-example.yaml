@@ -1,0 +1,39 @@
+# Example declarative showcase (same app flow as export-driven replay).
+# Run: pnpm showcase:replay-live replay/showcase-example.yaml
+version: 1
+customerEmail: david@startuplab.dev
+expectEscalation: true
+escalationReason: >-
+  Customer wants to change NGINX One subscription / billing; needs a human agent.
+
+guidance:
+  successSummary: >-
+    Customer explores self-serve, escalates, agent uses Employee AI, customer acknowledges.
+  preEscalationGuidance: >-
+    Customer is on NGINX One and needs subscription or billing help that requires a human.
+  keyFacts:
+    - NGINX One
+    - Plan change / billing
+  employeeAiGuidance: >-
+    Use internal and public docs. Produce concise internal notes and a draft customer reply
+    that confirms next steps and sets expectations.
+  postAgentCustomerGuidance: >-
+    After the agent’s reply, the customer should confirm understanding, then close with a clear thanks
+    once the issue is handled.
+  fallbackFirstCustomerMessage: >-
+    I need help changing my NGINX One subscription—can a human assist with billing?
+  fallbackPostCustomerMessage: Thanks—that answers my question.
+
+preEscalation:
+  mode: scripted
+  messages:
+    - "I'm looking at NGINX One and need to change my subscription plan."
+    - "Please connect me with someone who can handle billing for this account."
+
+postAgent:
+  mode: scripted
+  messages:
+    - |-
+      Got it—thanks for confirming the next steps.
+
+      Appreciate the help — that resolves it for me.

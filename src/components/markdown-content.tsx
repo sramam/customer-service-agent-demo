@@ -3,6 +3,8 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import { linkifyInvoiceDownloadPaths } from "@/lib/linkify-invoice-paths";
+import { cn } from "@/lib/utils";
 
 const mdComponents: Components = {
   table: ({ children, ...props }) => (
@@ -97,10 +99,20 @@ export function MarkdownContent({
   content: string;
   className?: string;
 }) {
+  const md = linkifyInvoiceDownloadPaths(content);
+  const inlineRoot = className.includes("inline-markdown");
+
   return (
-    <div className={`prose-sm max-w-none ${className}`}>
+    <div
+      className={cn(
+        "prose-sm max-w-none",
+        className,
+        /* Let list/markdown chunks participate in the parent line box when parent uses `contents` */
+        inlineRoot && "contents",
+      )}
+    >
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-        {content}
+        {md}
       </ReactMarkdown>
     </div>
   );

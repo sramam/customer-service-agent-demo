@@ -22,7 +22,7 @@ export function useChatInputFocus(options: {
   captureGlobalKeys?: boolean;
 }) {
   const { canType, status, setInput, captureGlobalKeys = true } = options;
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const prevStatus = useRef(status);
   const prevCanType = useRef(canType);
 

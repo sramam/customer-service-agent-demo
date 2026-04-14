@@ -1,9 +1,12 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { parseCustomerResponse, segmentText } from "@/lib/parse-response";
+import {
+  parseCustomerResponse,
+  stripLegacyInlineCitationMarkers,
+} from "@/lib/parse-response";
 import { MarkdownContent } from "@/components/markdown-content";
-import type { Citation } from "@/lib/types";
+import type { Source } from "@/lib/types";
 import type { UIMessage } from "ai";
 import { FileDown, BookOpen, ExternalLink } from "lucide-react";
 
@@ -34,54 +37,50 @@ const labelMap: Record<Variant, string | null> = {
   system: null,
 };
 
-function deduplicateCitations(citations: Citation[]): {
-  citations: Citation[];
-  labelMap: Map<string, string>;
-} {
-  const seen = new Map<string, number>();
-  const deduped: Citation[] = [];
-
-  const labelMap = new Map<string, string>();
-
-  for (const c of citations) {
+function deduplicateSources(sources: Source[]): Source[] {
+  const seen = new Set<string>();
+  const deduped: Source[] = [];
+  for (const c of sources) {
     const key = c.docFile ?? c.url ?? `${c.source}:${c.title}`;
-    if (seen.has(key)) {
-      const newIdx = seen.get(key)!;
-      labelMap.set(c.label, `[${newIdx + 1}]`);
-    } else {
-      const idx = deduped.length;
-      seen.set(key, idx);
-      const newLabel = `[${idx + 1}]`;
-      labelMap.set(c.label, newLabel);
-      deduped.push({ ...c, label: newLabel });
-    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(c);
   }
-
-  return { citations: deduped, labelMap };
+  return deduped;
 }
 
-function remapInlineMarkers(text: string, labelMap: Map<string, string>): string {
-  return text.replace(/\[\d+\]/g, (match) => labelMap.get(match) ?? match);
+/** If the body already lists each invoice PDF, hide duplicate invoice rows under Sources. */
+function omitRedundantInvoiceSources(body: string, sources: Source[]): Source[] {
+  if (sources.length === 0) return sources;
+  if (!sources.every((s) => s.source === "invoice")) return sources;
+  const linkMatches = body.match(/\/api\/invoices\/download\?key=/g);
+  const n = linkMatches?.length ?? 0;
+  if (n === 0) return sources;
+  if (n >= sources.length) return [];
+  return sources;
 }
 
-function CitationFootnotes({
-  citations,
+function SourceFootnotes({
+  sources,
   onViewDoc,
 }: {
-  citations: Citation[];
+  sources: Source[];
   onViewDoc?: (scope: "public" | "internal", file: string, title: string) => void;
 }) {
-  if (citations.length === 0) return null;
+  if (sources.length === 0) return null;
   return (
     <div className="mt-3 pt-2 border-t border-gray-200/60 space-y-1.5">
-      {citations.map((c, i) => {
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+        Sources
+      </div>
+      {sources.map((c, i) => {
         const isDoc = c.source === "public-doc" || c.source === "internal-doc";
         const isInvoice = c.source === "invoice";
         const scope = c.source === "internal-doc" ? "internal" : "public";
 
         return (
           <div key={i} className="flex items-start gap-2 text-xs text-gray-500">
-            <span className="font-mono font-medium shrink-0">{c.label}</span>
+            <span className="tabular-nums font-medium text-gray-600 shrink-0">{i + 1}.</span>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 {isInvoice ? (
@@ -124,23 +123,6 @@ function CitationFootnotes({
   );
 }
 
-function InlineCitationMarker({
-  label,
-  citation,
-}: {
-  label: string;
-  citation: Citation | undefined;
-}) {
-  return (
-    <span
-      className="inline-flex items-center justify-center text-[10px] font-mono font-bold text-blue-700 bg-blue-100 rounded px-1 py-0.5 mx-0.5 cursor-help"
-      title={citation ? `${citation.title}: ${citation.excerpt}` : label}
-    >
-      {label}
-    </span>
-  );
-}
-
 export function MessageBubble({
   message,
   context,
@@ -160,43 +142,39 @@ export function MessageBubble({
   const isAI = variant === "customer-ai" || variant === "employee-ai";
   const parsed = isAI ? parseCustomerResponse(rawText) : null;
 
-  const { displayText, citations } = (() => {
-    if (!parsed) return { displayText: rawText, citations: [] as Citation[] };
-    const rawCitations = parsed.citations ?? [];
-    if (rawCitations.length === 0) return { displayText: parsed.text, citations: rawCitations };
-    const { citations: deduped, labelMap } = deduplicateCitations(rawCitations);
-    return { displayText: remapInlineMarkers(parsed.text, labelMap), citations: deduped };
+  const { displayText, sources } = (() => {
+    if (!parsed) return { displayText: rawText, sources: [] as Source[] };
+    const rawSources = parsed.sources ?? [];
+    const deduped = deduplicateSources(rawSources);
+    const body =
+      deduped.length > 0 || /\[\d+\]/.test(parsed.text)
+        ? stripLegacyInlineCitationMarkers(parsed.text)
+        : parsed.text;
+    const sources = omitRedundantInvoiceSources(body, deduped);
+    return { displayText: body, sources };
   })();
 
-  const segments = citations.length > 0 ? segmentText(displayText, citations) : null;
-
   return (
-    <div className={cn("rounded-lg px-4 py-3 max-w-[80%]", variantStyles[variant])}>
+    <div
+      className={cn("rounded-lg px-4 py-3 max-w-[80%]", variantStyles[variant])}
+      {...(context === "customer"
+        ? {
+            "data-testid": "demo-customer-thread-message",
+            "data-thread-role": message.role,
+          }
+        : {})}
+    >
       {label && (
         <div className="text-xs font-medium mb-1 opacity-60">{label}</div>
       )}
       <div className="text-sm leading-relaxed">
         {isAI && parsed ? (
-          segments ? (
-            segments.map((seg, i) =>
-              seg.type === "text" ? (
-                <MarkdownContent key={i} content={seg.value} className="inline-markdown" />
-              ) : (
-                <InlineCitationMarker
-                  key={i}
-                  label={seg.label}
-                  citation={seg.citation}
-                />
-              )
-            )
-          ) : (
-            <MarkdownContent content={displayText} />
-          )
+          <MarkdownContent content={displayText} />
         ) : (
           <span className="whitespace-pre-wrap">{displayText}</span>
         )}
       </div>
-      <CitationFootnotes citations={citations} onViewDoc={onViewDoc} />
+      <SourceFootnotes sources={sources} onViewDoc={onViewDoc} />
     </div>
   );
 }

@@ -14,7 +14,6 @@ import {
   EmployeeAiChatBubbleBody,
   getAssistantThreadKind,
 } from "@/components/agent-dashboard/agent-message-body";
-import { EscalationBanner } from "@/components/chat/escalation-banner";
 import { Send, RefreshCw, MessageSquare, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -203,12 +202,6 @@ export default function AgentDashboard() {
               className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
             >
               <div className="max-w-3xl mx-auto py-4 px-4 space-y-3">
-                {selected.escalationReason && (
-                  <EscalationBanner
-                    reason={selected.escalationReason}
-                    context="employee"
-                  />
-                )}
                 {visibleThreadMessages.map((msg) => {
                     const isCustomer = msg.role === "user";
                     const isSystem = msg.role === "system";
@@ -224,7 +217,7 @@ export default function AgentDashboard() {
                       bodyKind = "customer";
                     } else if (isSystem) {
                       bgClass =
-                        "bg-amber-50 border-amber-200 text-amber-900 text-center italic";
+                        "bg-slate-50/90 border-slate-200 text-slate-900 text-left max-w-full";
                       label = "";
                       bodyKind = "system";
                     } else if (isHumanApproved) {
@@ -249,7 +242,11 @@ export default function AgentDashboard() {
                         className={cn(
                           "rounded-lg px-4 py-3 border text-sm",
                           bgClass,
-                          isCustomer ? "ml-auto max-w-[80%]" : "max-w-[80%]"
+                          isCustomer
+                            ? "ml-auto max-w-[80%]"
+                            : isSystem
+                              ? "w-full max-w-full"
+                              : "max-w-[80%]"
                         )}
                       >
                         {label && (
@@ -370,7 +367,7 @@ export default function AgentDashboard() {
                       <ReviewControls
                         internalNotes={parsed.internalNotes}
                         draftResponse={parsed.draftCustomerResponse}
-                        citations={parsed.citations}
+                        sources={parsed.sources}
                         conversationId={selectedId}
                         onSent={() => {
                           void refetch();

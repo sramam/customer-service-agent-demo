@@ -44,6 +44,7 @@ export function dbCustomerMessagesToUiMessages(rows: DbCustomerMessage[]): UIMes
       id: row.id,
       role: uiRole,
       parts: [{ type: "text", text: row.content }],
+      metadata: { createdAt: row.createdAt },
     };
   });
 }
@@ -82,6 +83,7 @@ export function mergeDbRowsIntoCustomerChat(
       id: row.id,
       role: uiRole,
       parts: [{ type: "text", text: row.content }],
+      metadata: { createdAt: row.createdAt },
     });
   }
 

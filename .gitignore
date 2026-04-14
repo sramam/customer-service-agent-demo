@@ -16,6 +16,8 @@
 /playwright-report/
 /blob-report/
 /remotion-out/
+/replay/.remotion-props.json
+/replay/.generated/
 /remotion/node_modules/
 /remotion/public/voiceover.mp3
 /remotion/public/voice/*.mp3
@@ -30,6 +32,13 @@
 # misc
 .DS_Store
 *.pem
+
+# User-supplied Bensound bed track for optional `pnpm demo:mix-music` (see README)
+/bensound-creativeminds.mp3
+/remotion/public/music/*.mp3
+
+# Local conversation exports (keep `replay/*.yaml` / `*.txt` examples only)
+/replay/*.json
 
 # debug
 npm-debug.log*

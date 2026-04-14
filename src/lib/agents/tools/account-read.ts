@@ -28,7 +28,7 @@ export const getAccountInfo = tool({
 
 export const listInvoices = tool({
   description:
-    "List invoices for a customer by email. Returns invoice numbers, amounts, periods, and download keys.",
+    "List invoices for a customer by email. Returns invoice numbers, amounts, periods (ISO dates), issued date, and PDF download URLs. In customer-facing markdown, present periods and dates in short human-readable form (e.g. Mar 1–31, 2026; Apr 1, 2026), not raw ISO strings in table cells unless the user asks for exact ISO.",
   inputSchema: z.object({
     email: z.string().email().describe("Customer email address"),
   }),

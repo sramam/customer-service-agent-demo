@@ -1,0 +1,28 @@
+# Showcase outline (freeform). Lines starting with # are ignored by the generator.
+#
+# [voice-over] …  — Maps to the 9 fixed narrations (see remotion/src/demo-timeline.ts).
+#   Run: pnpm showcase:outline this-file  →  replay/.generated/voice-narrations.json
+#
+# Director notes (e.g. [voice-over + agent UI scroll]) — For you when recording e2e and when
+# tuning videoAnchorSec per beat so each frozen frame matches the story. They do not drive scrolling
+# automatically; implement scroll/split timing in e2e/demo-flow.spec.ts and demoTimelineMark().
+#
+# ---------------------------------------------------------------------------
+
+[background] I'd like to use the customer david. The app starts as a single panel customer chat and 
+on escalation, will split into a customer UI panel on the left side and agent UI panel on the right side
+  - [voice-over] customer can self-serve a chat with public documentation and account information they can only read (don't say read only).
+  - first ask 1-2 technical questions
+  - then fetch recent invoices
+  - then ask for an upgrade to the support plan, starting immediately (should escalate to agent pane becoming visible)
+    - [background] before proceeding/clicking with input scroll the agent UI to display from the top to the bottom (about 10 seconds)
+    - [voice-over] describe the agent UI highlighting the following points:
+      - the human agent interface is presented as a split screen for the POC
+      - these would be independent apps in production.
+      - the agent chat has access to internal documentation and can make modifications to the system-of-record
+      - the agent UI presents the internal information such that it cannot mistakenly be sent to the customer
+      - the agent AI also presents a draft customer response that the human agent can review, edit and send to the customer
+  - we accept the draft customer response in the Agent UI, 
+  - the agent is typically asking clarifying questions - answer them appropriately
+  - once the agent responds that the upgrade is done, the demo is done.
+  - [voice-over] thank you note for the viewer of the demo video and invite them to try the app by clicking the button below.

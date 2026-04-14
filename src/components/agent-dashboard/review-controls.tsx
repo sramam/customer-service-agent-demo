@@ -4,33 +4,36 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, FileText, BookOpen, FileDown, ExternalLink } from "lucide-react";
-import type { Citation } from "@/lib/types";
+import type { Source } from "@/lib/types";
+import { stripLegacyInlineCitationMarkers } from "@/lib/parse-response";
 import { MarkdownContent } from "@/components/markdown-content";
 
 export function ReviewControls({
   internalNotes,
   draftResponse,
-  citations,
+  sources,
   conversationId,
   onSent,
   onViewDoc,
 }: {
   internalNotes: string;
   draftResponse: string;
-  citations: Citation[];
+  sources: Source[];
   conversationId: string;
   onSent: () => void;
   onViewDoc?: (scope: "public" | "internal", file: string, title: string) => void;
 }) {
-  const [editedDraft, setEditedDraft] = useState(draftResponse);
+  const [editedDraft, setEditedDraft] = useState(() =>
+    stripLegacyInlineCitationMarkers(draftResponse),
+  );
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    setEditedDraft(draftResponse);
+    setEditedDraft(stripLegacyInlineCitationMarkers(draftResponse));
   }, [draftResponse]);
 
-  const internalCitations = citations.filter((c) => c.source === "internal-doc");
-  const publicCitations = citations.filter((c) => c.source !== "internal-doc");
+  const internalSources = sources.filter((c) => c.source === "internal-doc");
+  const publicSources = sources.filter((c) => c.source !== "internal-doc");
 
   async function handleApprove() {
     if (!editedDraft.trim()) return;
@@ -57,7 +60,7 @@ export function ReviewControls({
     }
   }
 
-  function renderCitationRow(c: Citation, i: number) {
+  function renderSourceRow(c: Source, i: number) {
     const isDoc = c.source === "public-doc" || c.source === "internal-doc";
     const isInvoice = c.source === "invoice";
     const scope = c.source === "internal-doc" ? "internal" : "public";
@@ -69,7 +72,7 @@ export function ReviewControls({
         ) : (
           <BookOpen className="h-3 w-3" />
         )}
-        <span className="font-mono">{c.label}</span>
+        <span className="tabular-nums font-medium text-gray-600">{i + 1}.</span>
         <span className="font-medium">{c.title}</span>
         {isDoc && c.docFile && c.docFile.endsWith(".md") && onViewDoc && (
           <button
@@ -106,12 +109,12 @@ export function ReviewControls({
           onChange={(e) => setEditedDraft(e.target.value)}
           rows={10}
           className="mb-3 text-sm leading-relaxed min-h-[180px] resize-y max-h-[min(60vh,480px)]"
-          placeholder="Draft customer reply (markdown). Edited text is sent to the customer chat as-is."
+          placeholder="Draft customer reply (markdown). When you need several facts, ask for all of them in one message — edited text is sent as-is."
         />
-        {publicCitations.length > 0 && (
+        {publicSources.length > 0 && (
           <div className="mb-3 space-y-1">
-            <div className="text-xs font-medium text-gray-500">Citations (will be included):</div>
-            {publicCitations.map((c, i) => renderCitationRow(c, i))}
+            <div className="text-xs font-medium text-gray-500">Sources (for context):</div>
+            {publicSources.map((c, i) => renderSourceRow(c, i))}
           </div>
         )}
         <div className="flex justify-end">
@@ -136,13 +139,13 @@ export function ReviewControls({
           </p>
           <div className="text-gray-800 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:first:mt-0 [&_h2]:text-base [&_h2]:font-semibold">
             <MarkdownContent
-              content={internalNotes}
+              content={stripLegacyInlineCitationMarkers(internalNotes)}
               className="[&_*]:select-text [&_a]:pointer-events-auto"
             />
           </div>
-          {internalCitations.length > 0 && (
+          {internalSources.length > 0 && (
             <div className="mt-3 pt-2 border-t border-gray-300/50 space-y-1 pointer-events-auto">
-              {internalCitations.map((c, i) => renderCitationRow(c, i))}
+              {internalSources.map((c, i) => renderSourceRow(c, i))}
             </div>
           )}
         </div>

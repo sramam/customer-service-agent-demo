@@ -25,7 +25,7 @@ const SOURCE_REPO_URL = "https://github.com/sramam/customer-service-agent-demo";
 export const metadata: Metadata = {
   title: "F5 AI customer service — demo",
   description:
-    "Two-lane AI demo: customer chat from public docs + read-only account data, structured escalation, and an agent workspace with employee AI (internal notes + reviewed customer draft). Thread sync via PartyKit or polling. Neon + AI SDK 6.",
+    "Two-lane AI demo: customer chat from public docs + account data they can only read, structured escalation, and an agent workspace with employee AI (internal notes + reviewed customer draft). Thread sync via PartyKit or polling. Neon + AI SDK 6.",
 };
 
 export default function HomePage() {
@@ -44,7 +44,7 @@ export default function HomePage() {
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-slate-600">
             <strong className="font-medium text-slate-800">Customer AI</strong> answers from public
-            product documentation and read-only account tools—never mutating billing or
+            product documentation and account tools they can only read from—never mutating billing or
             subscriptions. <strong className="font-medium text-slate-800">Employee AI</strong>{" "}
             backs the human with internal runbooks plus read/write account tools, and always
             separates <strong className="font-medium text-slate-800">internal notes</strong> from a{" "}
@@ -80,8 +80,8 @@ export default function HomePage() {
               <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
               <span>
                 <strong className="text-slate-900">Customer AI</strong> — search public product
-                docs (optional product-line focus), read-only account and invoice views, inline
-                citations, and suggested chips that send as the customer&apos;s next message when
+                docs (optional product-line focus), account and invoice views they can only read, linked
+                sources, and suggested chips that send as the customer&apos;s next message when
                 tapped.
               </span>
             </li>

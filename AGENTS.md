@@ -23,7 +23,7 @@ This document describes how customer AI, employee AI, persistence, and UI fit to
 
 The app models **two lanes**:
 
-1. **Customer AI** — Public docs + read-only account/invoice tools. Cannot change subscriptions or billing; escalates to a human when intent is clear and a handoff is needed.
+1. **Customer AI** — Public docs + account and invoice tools customers can only read. Cannot change subscriptions or billing; escalates to a human when intent is clear and a handoff is needed.
 2. **Employee AI** — Backs the human agent: public + **internal** docs, full account read/write tools, structured **internal notes** vs **draft customer reply**.
 
 **Persistence** is PostgreSQL (Neon in dev/deploy) via Prisma: `CustomerAccount`, `Invoice`, `Conversation`, `Message`. Messages use `audience` (`CUSTOMER_VISIBLE` vs `INTERNAL_ONLY`) so employee↔AI chat does not appear in the customer thread.
@@ -50,7 +50,7 @@ The app models **two lanes**:
 - **Gather first, then escalate:** The model is instructed to clarify **what** the customer wants and **which products** (from `getAccountInfo`) before calling `requestEscalation`. Deeper discovery (retention, contract detail) is deferred to post-escalation human/employee flow.
 - **Structured handoff:** `requestEscalation` uses `src/lib/agents/tools/escalation-handoff.ts` — `changeSummary`, `productsInvolved[]`, optional `contextForAgent`. `buildEscalationReason()` flattens that into `escalationReason` + customer-visible system message.
 - **Suggested chips (`suggestedQuestions`):** Treated as **the customer’s next message** when tapped. Must be **customer voice** (e.g. product names, “Upgrade”, “Downgrade”) — not agent questions (“Are you looking to…?”). For product pickers, chips are **name-only**; prose should not duplicate the same list (avoid triple redundancy: bullets + bullets + chips).
-- **Response shape:** Markdown body, then `---METADATA---`, then JSON with `citations` + `suggestedQuestions`. Parsed by `parseCustomerResponse` in `src/lib/parse-response.ts` for display and chips.
+- **Response shape:** A **single JSON object** with `text` (GFM markdown), `sources`, and `suggestedQuestions`. Parsed by `parseCustomerResponse` in `src/lib/parse-response.ts` for display and chips. Server validation (`validate-ai-response.ts`) accepts JSON only.
 
 ---
 
@@ -64,8 +64,8 @@ The app models **two lanes**:
 
 ### Design choices (employee)
 
-- **Strict separation:** `---INTERNAL NOTES---` = agent-only (internal docs, risk, runbook logic). `---DRAFT CUSTOMER RESPONSE---` = **only** text safe to send to the customer; must be valid markdown for `MarkdownContent`, no internal secrets. `---METADATA---` JSON lists citations; internal-doc entries support notes; public/account/invoice entries support the draft.
-- **Unstructured replies:** If the model returns **no** delimiter sections, `parseEmployeeResponse` treats the entire body as **internal notes** and leaves **draft empty** — so conversational answers to the employee never populate the customer draft by accident.
+- **Strict separation:** JSON fields `internalNotes` (agent-only markdown) vs `draftCustomerResponse` (customer-safe markdown for the draft box). `sources` lists docs/invoices; internal-doc rows inform internal notes; public/account/invoice rows support the draft.
+- **Unstructured replies:** If the model returns **non-JSON** text, `parseEmployeeResponse` treats the entire body as **internal notes** and leaves **draft empty** — so conversational answers to the employee never populate the customer draft by accident.
 - **Prompt emphasis:** Internal notes are **incremental only** — new tool/doc findings and deltas; avoid repeating escalation reason or thread already shown in the UI. Draft should be the **best next customer message**, ready to send.
 
 ---
@@ -152,7 +152,7 @@ sequenceDiagram
 | `GET /api/conversations` | List escalations + enriched customer snapshot |
 | `POST /api/conversations/[id]/approve` | Post human-approved customer message |
 | `GET /api/invoices/download?key=…` | Invoice PDF proxy |
-| `GET /api/docs` | Read-only doc listing / file content (`scope`, optional `file`) for dev/inspector UIs |
+| `GET /api/docs` | Doc listing you can only read / file content (`scope`, optional `file`) for dev/inspector UIs |
 
 ---
 

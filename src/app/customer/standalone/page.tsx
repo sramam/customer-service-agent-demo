@@ -1,11 +1,20 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  type RefObject,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { EscalationBanner } from "@/components/chat/escalation-banner";
 import { Send, ArrowLeft } from "lucide-react";
@@ -16,6 +25,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { useCustomerMessagePartykit } from "@/hooks/use-customer-message-partykit";
 import { useChatInputFocus } from "@/hooks/use-chat-input-focus";
+import { useCustomerConversationDownloadHotkey } from "@/hooks/use-customer-conversation-download-hotkey";
 import { isChatBusy } from "@/lib/chat-in-flight";
 import { useChatStreamAutoRetry } from "@/hooks/use-chat-stream-auto-retry";
 import { CustomerThreadPicker } from "@/components/customer/customer-thread-picker";
@@ -182,6 +192,16 @@ function CustomerChat({
   const canType = pendingText === null && !isChatBusy(status);
   const inputRef = useChatInputFocus({ canType, status, setInput });
 
+  useCustomerConversationDownloadHotkey({
+    messages,
+    conversationId,
+    customerEmail,
+    escalated,
+    escalationReason,
+    status,
+    pendingUserText: pendingText,
+  });
+
   return (
     <div className="flex flex-col h-full">
       <header className="border-b px-6 py-3 flex items-center justify-between shrink-0">
@@ -256,25 +276,43 @@ function CustomerChat({
 
       <form
         onSubmit={handleSend}
-        className="border-t px-4 py-3 flex gap-2 shrink-0 max-w-3xl mx-auto w-full"
+        className="border-t px-4 py-3 flex flex-col gap-1.5 shrink-0 max-w-3xl mx-auto w-full"
       >
-        <Input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={
-            escalated ? "Reply to support…" : "Message…"
-          }
-          disabled={pendingText !== null || isChatBusy(status)}
-          className="flex-1"
-        />
-        <Button
-          type="submit"
-          size="icon"
-          disabled={pendingText !== null || !input.trim() || isChatBusy(status)}
-        >
-          <Send className="h-4 w-4" />
-        </Button>
+        {escalated ? (
+          <p className="text-[10px] text-muted-foreground leading-snug">
+            Reply with as much detail as you like — several answers in one message is fine.
+          </p>
+        ) : null}
+        <div className="flex gap-2 items-end">
+          {escalated ? (
+            <Textarea
+              ref={inputRef as RefObject<HTMLTextAreaElement | null>}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Reply to support…"
+              disabled={pendingText !== null || isChatBusy(status)}
+              rows={3}
+              className="flex-1 min-h-[4.25rem] resize-y max-h-40"
+            />
+          ) : (
+            <Input
+              ref={inputRef as RefObject<HTMLInputElement | null>}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Message…"
+              disabled={pendingText !== null || isChatBusy(status)}
+              className="flex-1"
+            />
+          )}
+          <Button
+            type="submit"
+            size="icon"
+            className="shrink-0"
+            disabled={pendingText !== null || !input.trim() || isChatBusy(status)}
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
       </form>
     </div>
   );

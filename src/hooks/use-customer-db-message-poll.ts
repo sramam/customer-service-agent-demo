@@ -91,6 +91,7 @@ export function useCustomerDbMessagePoll(
               id: row.id,
               role: uiRole,
               parts: [{ type: "text", text: row.content }],
+              metadata: { createdAt: row.createdAt },
             });
           }
 

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Standalone CLI: mix Bensound bed track into the Remotion-rendered demo MP4.
+# Requires: ffmpeg on PATH, bensound-creativeminds.mp3 at repo root, remotion-out/f5-demo.mp4
+#
+#   ./mix-demo-music
+#   ./mix-demo-music -- --video remotion-out/f5-demo-clip.mp4 --out remotion-out/out.mp4
+#   MUSIC_VOLUME=0.05 ./mix-demo-music
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec node "$ROOT/scripts/mix-demo-music.mjs" "$@"

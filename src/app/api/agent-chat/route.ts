@@ -1,6 +1,13 @@
-import { streamText, stepCountIs, type ModelMessage, type UIMessage } from "ai";
+import {
+  createUIMessageStreamResponse,
+  streamText,
+  stepCountIs,
+  type ModelMessage,
+  type UIMessage,
+} from "ai";
 import {
   AI_AGENT_STREAM_MAX_RETRIES,
+  AI_RESPONSE_SCHEMA_MAX_ATTEMPTS,
   CLIENT_STREAM_AUTO_RETRY_MAX,
 } from "@/lib/ai-retry";
 import {
@@ -12,6 +19,12 @@ import { buildEmployeeModelMessages } from "@/lib/build-employee-model-messages"
 import { createMessageWithFkRetry } from "@/lib/message-persist";
 import { prisma } from "@/lib/prisma";
 import { requireOpenAiKeyResponse } from "@/lib/require-openai";
+import {
+  validateEmployeeAssistantText,
+  formatEmployeeSchemaRetryUserMessage,
+} from "@/lib/validate-ai-response";
+import { createSyntheticAssistantTextStream } from "@/lib/synthetic-assistant-ui-stream";
+import { EMPLOYEE_SCHEMA_FALLBACK_ASSISTANT_TEXT } from "@/lib/schema-fallback-messages";
 
 export const runtime = "nodejs";
 
@@ -165,24 +178,54 @@ export async function POST(req: Request) {
     modelMessages,
   );
 
-  const result = streamText({
-    maxRetries: AI_AGENT_STREAM_MAX_RETRIES,
-    model: employeeModel,
-    system: systemPrompt,
-    messages: modelMessages,
-    tools: employeeTools,
-    stopWhen: stepCountIs(8),
-    onFinish: async ({ text }) => {
-      if (text) {
-        await createMessageWithFkRetry({
-          conversationId,
-          role: "employee-ai",
-          content: text,
-          audience: "INTERNAL_ONLY",
-        });
-      }
-    },
-  });
+  const schemaFailures: { text: string; errors: string[] }[] = [];
+  let validated = false;
+  let finalText = "";
 
-  return result.toUIMessageStreamResponse();
+  for (let attempt = 1; attempt <= AI_RESPONSE_SCHEMA_MAX_ATTEMPTS; attempt++) {
+    const extra: ModelMessage[] = [];
+    for (const f of schemaFailures) {
+      extra.push({ role: "assistant", content: f.text });
+      extra.push({
+        role: "user",
+        content: formatEmployeeSchemaRetryUserMessage(f.errors),
+      });
+    }
+
+    const result = streamText({
+      maxRetries: AI_AGENT_STREAM_MAX_RETRIES,
+      model: employeeModel,
+      system: systemPrompt,
+      messages: [...modelMessages, ...extra],
+      tools: employeeTools,
+      stopWhen: stepCountIs(8),
+    });
+
+    const text = await result.text;
+
+    const v = validateEmployeeAssistantText(text);
+    if (v.ok) {
+      validated = true;
+      finalText = JSON.stringify(v.data);
+      break;
+    }
+    schemaFailures.push({ text, errors: v.errors });
+  }
+
+  if (!validated) {
+    finalText = EMPLOYEE_SCHEMA_FALLBACK_ASSISTANT_TEXT;
+  }
+
+  if (finalText) {
+    await createMessageWithFkRetry({
+      conversationId,
+      role: "employee-ai",
+      content: finalText,
+      audience: "INTERNAL_ONLY",
+    });
+  }
+
+  const outStream = createSyntheticAssistantTextStream(finalText, messages);
+
+  return createUIMessageStreamResponse({ stream: outStream });
 }

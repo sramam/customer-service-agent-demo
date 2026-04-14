@@ -1,10 +1,19 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from "react";
+import {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type RefObject,
+} from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { EscalationBanner } from "@/components/chat/escalation-banner";
@@ -38,6 +47,7 @@ import { useEmployeeAiRefreshOnCustomerMessage } from "@/hooks/use-employee-ai-r
 import { useEmployeeAiScrollFollow } from "@/hooks/use-employee-ai-scroll-follow";
 import { useAgentThreadTailIntoView } from "@/hooks/use-agent-thread-tail-into-view";
 import { useChatInputFocus } from "@/hooks/use-chat-input-focus";
+import { useCustomerConversationDownloadHotkey } from "@/hooks/use-customer-conversation-download-hotkey";
 import { isChatBusy } from "@/lib/chat-in-flight";
 import { useChatStreamAutoRetry } from "@/hooks/use-chat-stream-auto-retry";
 import { CLIENT_STREAM_AUTO_RETRY_MAX } from "@/lib/ai-retry";
@@ -396,6 +406,16 @@ function CustomerChatInline({
     captureGlobalKeys: false,
   });
 
+  useCustomerConversationDownloadHotkey({
+    messages,
+    conversationId,
+    customerEmail: email,
+    escalated,
+    escalationReason,
+    status,
+    pendingUserText: pendingText,
+  });
+
   return (
     <div className="flex flex-col flex-1 min-h-0 relative">
       <header className="border-b px-4 py-3 flex items-center justify-between shrink-0">
@@ -452,21 +472,43 @@ function CustomerChatInline({
         </div>
       )}
 
-      <form onSubmit={(e) => { e.preventDefault(); submitQuestion(input.trim()); }} className="border-t px-3 py-2.5 flex gap-2 shrink-0" data-testid="demo-customer-chat-form">
-        <Input
-          ref={customerInputRef}
-          data-testid="demo-customer-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={
-            escalated ? "Reply to support…" : "Message…"
-          }
-          disabled={pendingText !== null || isChatBusy(status)}
-          className="flex-1 text-sm"
-        />
-        <Button type="submit" size="icon" disabled={pendingText !== null || !input.trim() || isChatBusy(status)}>
-          <Send className="h-4 w-4" />
-        </Button>
+      <form
+        onSubmit={(e) => { e.preventDefault(); submitQuestion(input.trim()); }}
+        className="border-t px-3 py-2.5 flex flex-col gap-1.5 shrink-0"
+        data-testid="demo-customer-chat-form"
+      >
+        {escalated ? (
+          <p className="text-[10px] text-muted-foreground px-0.5 leading-snug">
+            Reply with as much detail as you like — several answers in one message is fine.
+          </p>
+        ) : null}
+        <div className="flex gap-2 items-end">
+          {escalated ? (
+            <Textarea
+              ref={customerInputRef as RefObject<HTMLTextAreaElement | null>}
+              data-testid="demo-customer-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Reply to support…"
+              disabled={pendingText !== null || isChatBusy(status)}
+              rows={3}
+              className="flex-1 text-sm min-h-[4.25rem] resize-y max-h-40"
+            />
+          ) : (
+            <Input
+              ref={customerInputRef as RefObject<HTMLInputElement | null>}
+              data-testid="demo-customer-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Message…"
+              disabled={pendingText !== null || isChatBusy(status)}
+              className="flex-1 text-sm"
+            />
+          )}
+          <Button type="submit" size="icon" className="shrink-0" disabled={pendingText !== null || !input.trim() || isChatBusy(status)}>
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
       </form>
 
       {docViewer && (
@@ -660,7 +702,6 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
               className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
             >
               <div className="py-3 px-2 flex flex-col gap-2">
-                {selected.escalationReason && <EscalationBanner reason={selected.escalationReason} context="employee" />}
                 {visibleThreadMessages.map((msg) => {
                   const isCustomer = msg.role === "user";
                   const isSystem = msg.role === "system";
@@ -683,8 +724,8 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
                   }
                   if (isSystem) {
                     return (
-                      <div key={msg.id} className="self-center max-w-[min(92%,24rem)] my-0.5">
-                        <div className="rounded-full border border-amber-200/90 bg-amber-50 px-3 py-1.5 text-center shadow-sm">
+                      <div key={msg.id} className="w-full max-w-[min(100%,36rem)] self-center my-1">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/90 px-3 py-2.5 shadow-sm text-left">
                           <AgentThreadMessageBody content={msg.content} kind="system" />
                         </div>
                       </div>
@@ -803,7 +844,7 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
                     Suggest internal notes + draft
                   </Button>
                   <form onSubmit={handleAISend} className="flex gap-2">
-                    <Input ref={agentInputRef} data-testid="demo-employee-ai-input" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask the Employee AI (internal)…" disabled={isChatBusy(status)} className="flex-1 bg-white text-xs min-w-0" />
+                    <Input ref={agentInputRef as RefObject<HTMLInputElement | null>} data-testid="demo-employee-ai-input" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask the Employee AI (internal)…" disabled={isChatBusy(status)} className="flex-1 bg-white text-xs min-w-0" />
                     <Button type="submit" data-testid="demo-employee-ai-send" size="icon" disabled={!input.trim() || isChatBusy(status)} className="h-8 w-8 shrink-0">
                       <Send className="h-3.5 w-3.5" />
                     </Button>
@@ -814,7 +855,7 @@ function AgentPanelInline({ autoSelectId }: { autoSelectId: string | null }) {
                     <ReviewControls
                       internalNotes={parsed.internalNotes}
                       draftResponse={parsed.draftCustomerResponse}
-                      citations={parsed.citations}
+                      sources={parsed.sources}
                       conversationId={selectedId}
                       onSent={() => { void refetch(); setMessages([]); }}
                       onViewDoc={handleViewDoc}
