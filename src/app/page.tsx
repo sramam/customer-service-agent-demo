@@ -214,10 +214,10 @@ export default function HomePage() {
                     Input tokens
                   </th>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
-                    12,771,454
+                    17,603,947
                   </td>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
-                    $63.86
+                    $88.02
                   </td>
                 </tr>
                 <tr>
@@ -225,10 +225,10 @@ export default function HomePage() {
                     Output tokens
                   </th>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
-                    1,314,797
+                    1,851,308
                   </td>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
-                    $32.87
+                    $46.28
                   </td>
                 </tr>
                 <tr>
@@ -236,10 +236,10 @@ export default function HomePage() {
                     Input cached tokens
                   </th>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
-                    220,672,528
+                    311,163,351
                   </td>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
-                    $110.34
+                    $155.58
                   </td>
                 </tr>
                 <tr className="border-t border-slate-200 bg-slate-50/60 font-medium">
@@ -248,7 +248,7 @@ export default function HomePage() {
                   </th>
                   <td className="px-4 py-3 text-right text-slate-500">—</td>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
-                    $207.06
+                    $289.88
                   </td>
                 </tr>
               </tbody>
