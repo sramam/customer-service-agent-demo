@@ -22,6 +22,26 @@ import {
 
 const SOURCE_REPO_URL = "https://github.com/sramam/customer-service-agent-demo";
 
+function GitHubMark({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path
+        fillRule="evenodd"
+        d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+/** Set on Vercel builds and runtime; hide local-dev-only copy (env names, scripts). */
+const isVercelDeploy = process.env.VERCEL === "1";
+
 export const metadata: Metadata = {
   title: "F5 AI customer service — demo",
   description:
@@ -31,6 +51,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   const embedUrl = resolveDemoVideoEmbedUrl();
   const embedFromEnv = isDemoVideoEmbedFromEnv();
+  const showDevSetupCopy = !isVercelDeploy;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 text-slate-900">
@@ -52,6 +73,43 @@ export default function HomePage() {
             reviews before anything is sent. Escalation hands off in-thread with structured context.
           </p>
         </header>
+
+        <section
+          className="mb-10 rounded-2xl border border-slate-800 bg-slate-900 px-5 py-6 shadow-lg md:mb-12"
+          aria-labelledby="github-source-heading"
+        >
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+            <div className="flex gap-4">
+              <GitHubMark className="h-11 w-11 shrink-0 text-white" />
+              <div className="min-w-0 text-left">
+                <p
+                  id="github-source-heading"
+                  className="text-xs font-semibold uppercase tracking-wider text-slate-400"
+                >
+                  Source code
+                </p>
+                <p className="mt-1 truncate font-mono text-base font-semibold text-white sm:text-lg">
+                  sramam/customer-service-agent-demo
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-slate-300">
+                  Browse the full repo—agents, UI, APIs, and demo media pipeline.
+                </p>
+              </div>
+            </div>
+            <a
+              href={SOURCE_REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "shrink-0 gap-2 border-0 bg-white text-slate-900 hover:bg-slate-100"
+              )}
+            >
+              View on GitHub
+              <ExternalLink className="h-4 w-4" aria-hidden />
+            </a>
+          </div>
+        </section>
 
         <aside className="mb-10 rounded-2xl border border-violet-200 bg-violet-50/80 px-5 py-4 md:mb-12">
           <div className="flex gap-3">
@@ -118,13 +176,23 @@ export default function HomePage() {
               <span>
                 <strong className="text-slate-900">Live thread sync</strong> — the agent view stays
                 current after customer messages and approved replies:{" "}
-                <strong className="text-slate-900">PartyKit</strong> WebSockets when{" "}
-                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
-                  NEXT_PUBLIC_PARTYKIT_HOST
-                </code>{" "}
-                is set, otherwise automatic polling (~3s) plus refetch when you return to the tab.
-                Same-tab split view also fires an instant refresh so the agent column doesn&apos;t wait
-                on the network.
+                {showDevSetupCopy ? (
+                  <>
+                    <strong className="text-slate-900">PartyKit</strong> WebSockets when{" "}
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                      NEXT_PUBLIC_PARTYKIT_HOST
+                    </code>{" "}
+                    is set, otherwise automatic polling (~3s) plus refetch when you return to the tab.
+                    Same-tab split view also fires an instant refresh so the agent column doesn&apos;t
+                    wait on the network.
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-slate-900">PartyKit</strong> WebSockets when configured,
+                    otherwise automatic polling plus refetch when you return to the tab. Same-tab split
+                    view also refreshes the agent column immediately.
+                  </>
+                )}
               </span>
             </li>
           </ul>
@@ -135,42 +203,79 @@ export default function HomePage() {
             Walkthrough
           </h2>
           <DemoVideo embedUrl={embedUrl} />
-          <p className="mt-3 text-center text-xs text-slate-500">
-            {embedUrl ? (
-              embedFromEnv ? (
-                <>
-                  Video is embedded from{" "}
-                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL</code>. For local MP4-only
-                  playback, run <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">pnpm dev</code> without that env and add{" "}
-                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">public/f5-demo.mp4</code> via{" "}
-                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">pnpm demo:publish-video</code>.
-                </>
+          {showDevSetupCopy ? (
+            <p className="mt-3 text-center text-xs text-slate-500">
+              {embedUrl ? (
+                embedFromEnv ? (
+                  <>
+                    Video is embedded from{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">
+                      NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL
+                    </code>
+                    . For local MP4-only playback, run{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">
+                      pnpm dev
+                    </code>{" "}
+                    without that env and add{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">
+                      public/f5-demo.mp4
+                    </code>{" "}
+                    via{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">
+                      pnpm demo:publish-video
+                    </code>
+                    .
+                  </>
+                ) : (
+                  <>
+                    Production uses the hosted YouTube walkthrough by default. Set{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">
+                      NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL
+                    </code>{" "}
+                    to override.
+                  </>
+                )
               ) : (
                 <>
-                  Production uses the hosted YouTube walkthrough by default. Set{" "}
-                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL</code> to override.
+                  Locally,{" "}
+                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">
+                    pnpm showcase:full
+                  </code>{" "}
+                  copies the MP4 to{" "}
+                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">
+                    public/f5-demo.mp4
+                  </code>
+                  , or set{" "}
+                  <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">
+                    NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL
+                  </code>{" "}
+                  to a YouTube embed URL.
                 </>
-              )
-            ) : (
-              <>
-                Locally, <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">pnpm showcase:full</code> copies the MP4 to{" "}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">public/f5-demo.mp4</code>, or set{" "}
-                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">NEXT_PUBLIC_DEMO_VIDEO_EMBED_URL</code> to a YouTube embed URL.
-              </>
-            )}
-          </p>
+              )}
+            </p>
+          ) : null}
         </section>
 
         <section className="flex flex-col items-center gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-8 py-10 text-center">
           <h2 className="text-lg font-semibold text-emerald-950">Try it yourself</h2>
           <p className="max-w-md text-sm leading-relaxed text-slate-600">
-            Open the interactive split view at <strong className="text-slate-800">/customer</strong>:
-            customer chat on the left, agent column on the right (escalation list, thread, employee
-            AI, draft review). Requires{" "}
-            <code className="text-slate-700">OPENAI_API_KEY</code> and a Neon{" "}
-            <code className="text-slate-700">DATABASE_URL</code> (see{" "}
-            <code className="text-slate-700">.env.example</code>). Omitting PartyKit env vars still
-            works; you get polling-based sync instead of WebSockets.
+            {showDevSetupCopy ? (
+              <>
+                Open the interactive split view at <strong className="text-slate-800">/customer</strong>:
+                customer chat on the left, agent column on the right (escalation list, thread,
+                employee AI, draft review). Requires{" "}
+                <code className="text-slate-700">OPENAI_API_KEY</code> and a Neon{" "}
+                <code className="text-slate-700">DATABASE_URL</code> (see{" "}
+                <code className="text-slate-700">.env.example</code>). Omitting PartyKit env vars
+                still works; you get polling-based sync instead of WebSockets.
+              </>
+            ) : (
+              <>
+                Open the interactive split view at <strong className="text-slate-800">/customer</strong>:
+                customer chat on the left, agent column on the right (escalation list, thread,
+                employee AI, draft review).
+              </>
+            )}
           </p>
           <Link
             href="/customer"
@@ -272,37 +377,71 @@ export default function HomePage() {
             <div>
               <h3 className="mb-1.5 font-medium text-slate-900">AI &amp; validation</h3>
               <p className="text-slate-600">
-                Vercel AI SDK 6 · OpenAI (via AI SDK) · optional Anthropic fallback (
-                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
-                  ANTHROPIC_API_KEY
-                </code>
-                ) · Zod tool schemas (<code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">inputSchema</code>)
+                {showDevSetupCopy ? (
+                  <>
+                    Vercel AI SDK 6 · OpenAI (via AI SDK) · optional Anthropic fallback (
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                      ANTHROPIC_API_KEY
+                    </code>
+                    ) · Zod tool schemas (
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                      inputSchema
+                    </code>
+                    )
+                  </>
+                ) : (
+                  <>
+                    Vercel AI SDK 6 · OpenAI (via AI SDK) · optional Anthropic fallback · Zod tool
+                    schemas
+                  </>
+                )}
               </p>
             </div>
             <div>
               <h3 className="mb-1.5 font-medium text-slate-900">Live sync</h3>
               <p className="text-slate-600">
-                Always on: PartyKit when configured, else polling · PartyKit dev/deploy (
-                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">pnpm party:dev</code>
-                ) · same-tab <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">f5-conversation-messages-updated</code> event for instant agent refresh
+                {showDevSetupCopy ? (
+                  <>
+                    Always on: PartyKit when configured, else polling · PartyKit dev/deploy (
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                      pnpm party:dev
+                    </code>
+                    ) · same-tab{" "}
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                      f5-conversation-messages-updated
+                    </code>{" "}
+                    event for instant agent refresh
+                  </>
+                ) : (
+                  <>
+                    PartyKit when configured, otherwise polling · same-tab events for instant agent
+                    refresh when using the split view
+                  </>
+                )}
               </p>
             </div>
             <div>
               <h3 className="mb-1.5 font-medium text-slate-900">Data</h3>
               <p className="text-slate-600">
-                Prisma 7 · PostgreSQL on Neon ·{" "}
-                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
-                  @prisma/adapter-neon
-                </code>{" "}
-                (pooled{" "}
-                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
-                  DATABASE_URL
-                </code>
-                , direct{" "}
-                <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
-                  DIRECT_URL
-                </code>{" "}
-                for migrations) · one shared database for local dev and production in this POC
+                {showDevSetupCopy ? (
+                  <>
+                    Prisma 7 · PostgreSQL on Neon ·{" "}
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                      @prisma/adapter-neon
+                    </code>{" "}
+                    (pooled{" "}
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                      DATABASE_URL
+                    </code>
+                    , direct{" "}
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                      DIRECT_URL
+                    </code>{" "}
+                    for migrations) · one shared database for local dev and production in this POC
+                  </>
+                ) : (
+                  <>Prisma 7 · PostgreSQL on Neon · Prisma Neon driver adapter</>
+                )}
               </p>
             </div>
             <div>
@@ -318,25 +457,36 @@ export default function HomePage() {
             <div>
               <h3 className="mb-1.5 font-medium text-slate-900">Hosting &amp; tooling</h3>
               <p className="text-slate-600">
-                Vercel (deploy) · same env pattern as <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">.env</code> — Neon URLs, OpenAI key · pnpm · ESLint
+                {showDevSetupCopy ? (
+                  <>
+                    Vercel (deploy) · same env pattern as{" "}
+                    <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] text-slate-700">
+                      .env
+                    </code>{" "}
+                    — Neon URLs, OpenAI key · pnpm · ESLint
+                  </>
+                ) : (
+                  <>Vercel · pnpm · ESLint</>
+                )}
               </p>
             </div>
           </div>
         </section>
 
         <footer className="mt-16 border-t border-slate-200 pt-8 text-center text-xs text-slate-500">
-          <p className="mb-4">
+          <p>
             <a
               href={SOURCE_REPO_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 font-medium text-slate-700 underline-offset-2 hover:text-slate-900 hover:underline"
+              className="inline-flex items-center justify-center gap-1.5 font-medium text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline"
             >
-              <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-              <span>Source: sramam/customer-service-agent-demo</span>
+              <GitHubMark className="h-3.5 w-3.5 shrink-0" />
+              GitHub
             </a>
-          </p>
-          <p>
+            <span className="mx-2 text-slate-300" aria-hidden>
+              ·
+            </span>
             Standalone routes:{" "}
             <Link href="/customer/standalone" className="text-emerald-700 underline-offset-2 hover:underline">
               customer-only chat
